@@ -1,3 +1,4 @@
+/* New-session pane only: the chat column's composer look lives in the skin. */
 .wrap {
   display: flex;
   min-width: 0;
@@ -201,4 +202,10 @@
   margin: 6px 8px 0;
   color: var(--error);
   font-size: 11px;
+}
+
+.composerDrop {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 10px 30px -14px var(--shadow-color);
 }

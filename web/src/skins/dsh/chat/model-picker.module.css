@@ -1,0 +1,80 @@
+.picker {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.pill {
+  position: relative;
+  display: inline-flex;
+  height: 30px;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 5px;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 21px 0 8px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.pill:hover {
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  color: var(--fg);
+}
+
+.pill:focus-within {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.pillIcon {
+  display: none;
+}
+
+.select {
+  width: auto;
+  min-width: 0;
+  max-width: 220px;
+  field-sizing: content;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  text-align: right;
+  outline: none;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelSelect {
+  max-width: 240px;
+}
+
+.thinkingSelect {
+  max-width: 92px;
+}
+
+.select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chevron {
+  position: absolute;
+  right: 7px;
+  display: inline-flex;
+  color: var(--muted);
+  pointer-events: none;
+}

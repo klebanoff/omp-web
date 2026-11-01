@@ -1,12 +1,16 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent, type Ref, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { comparablePath, dirname, joinPath } from "@/api/paths";
 import type { GitFileStatus } from "@/api/workspace";
+import { scheduleIdle } from "@/state/schedule-idle";
 import { useFileList } from "./use-workbench-data";
 import { useFileMutations } from "./use-file-mutations";
 import styles from "./file-tree.module.css";
 
 const MAX_ENTRIES = 500;
+const ROW_HEIGHT = 22;
+const WINDOW_OVERSCAN = 16;
+const IDLE_NEIGHBORS = 24;
 
 interface FileTreeProps {
   sessionId: string;
@@ -282,6 +286,7 @@ export function FileTree({
                 sessionId={sessionId}
                 expanded={expanded}
                 gitByPath={gitByPath}
+                scrollRef={treeRef}
                 onToggle={onToggle}
                 onOpen={onOpen}
                 ops={ops}
@@ -304,12 +309,55 @@ interface DirectoryListProps {
   sessionId: string;
   expanded: readonly string[];
   gitByPath: Map<string, GitFileStatus>;
+  scrollRef: RefObject<HTMLDivElement | null>;
   onToggle: (path: string) => void;
   onOpen: (path: string, preview: boolean) => void;
   ops: TreeOps;
   onRenamed?: (from: string, to: string) => void;
   onDeleted?: (path: string) => void;
   onDragStartFile?: (event: DragEvent<HTMLDivElement>, path: string, root: string) => void;
+}
+
+function useEntryWindow(scrollRef: RefObject<HTMLElement | null>, count: number): {
+  anchorRef: RefObject<HTMLDivElement | null>;
+  start: number;
+  end: number;
+} {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [range, setRange] = useState(() => ({ start: 0, end: Math.min(count, WINDOW_OVERSCAN * 2) }));
+
+  useEffect(() => {
+    const parent = scrollRef.current;
+    const anchor = anchorRef.current;
+    if (!parent || !anchor || count === 0) return;
+    let neighbors = 0;
+    const measure = () => {
+      const parentRect = parent.getBoundingClientRect();
+      const top = parent.scrollTop + (anchor.getBoundingClientRect().top - parentRect.top);
+      const viewStart = parent.scrollTop - WINDOW_OVERSCAN * ROW_HEIGHT;
+      const viewEnd = parent.scrollTop + parent.clientHeight + (WINDOW_OVERSCAN + neighbors) * ROW_HEIGHT;
+      let start = Math.floor((viewStart - top) / ROW_HEIGHT);
+      let end = Math.ceil((viewEnd - top) / ROW_HEIGHT);
+      if (start < 0) start = 0;
+      if (end > count) end = count;
+      if (end < start) end = start;
+      setRange((previous) => (previous.start === start && previous.end === end ? previous : { start, end }));
+    };
+    measure();
+    parent.addEventListener("scroll", measure, { passive: true });
+    const cancelIdle = scheduleIdle(() => {
+      neighbors = IDLE_NEIGHBORS;
+      measure();
+    });
+    return () => {
+      parent.removeEventListener("scroll", measure);
+      cancelIdle();
+    };
+  }, [scrollRef, count]);
+
+  const start = Math.min(range.start, count);
+  const end = Math.min(Math.max(range.end, start), count);
+  return { anchorRef, start, end };
 }
 
 function DirectoryList({
@@ -319,6 +367,7 @@ function DirectoryList({
   sessionId,
   expanded,
   gitByPath,
+  scrollRef,
   onToggle,
   onOpen,
   ops,
@@ -327,50 +376,41 @@ function DirectoryList({
   onDragStartFile,
 }: DirectoryListProps) {
   const query = useFileList(path, sessionId);
+  const entries = query.data?.entries ?? [];
+  const ready = !query.isLoading && !query.isError;
+  const count = ready ? Math.min(entries.length, MAX_ENTRIES) : 0;
+  const { anchorRef, start, end } = useEntryWindow(scrollRef, count);
   if (query.isLoading) return <div className={styles.treeStatus}>Loading…</div>;
   if (query.isError) return <div className={styles.treeError}>{query.error.message}</div>;
-  const entries = query.data?.entries ?? [];
   if (entries.length === 0) return <div className={styles.treeStatus}>empty</div>;
+  const visible = entries.slice(start, end);
 
   return (
-    <>
-      {entries.slice(0, MAX_ENTRIES).map((entry) => {
+    <div ref={anchorRef}>
+      {start > 0 ? <div style={{ height: start * ROW_HEIGHT }} /> : null}
+      {visible.map((entry) => {
         const fullPath = joinPath(path, entry.name);
         if (entry.isDir) {
           const open = expanded.includes(fullPath);
           return (
-            <Fragment key={fullPath}>
-              <TreeRow
-                fullPath={fullPath}
-                name={entry.name}
-                root={root}
-                isDir
-                open={open}
-                depth={depth}
-                onToggle={onToggle}
-                onOpen={onOpen}
-                ops={ops}
-                {...(onRenamed ? { onRenamed } : {})}
-                {...(onDeleted ? { onDeleted } : {})}
-                {...(onDragStartFile ? { onDragStartFile } : {})}
-              />
-              {open ? (
-                <DirectoryList
-                  path={fullPath}
-                  root={root}
-                  depth={depth + 1}
-                  sessionId={sessionId}
-                  expanded={expanded}
-                  gitByPath={gitByPath}
-                  onToggle={onToggle}
-                  onOpen={onOpen}
-                  ops={ops}
-                  {...(onRenamed ? { onRenamed } : {})}
-                  {...(onDeleted ? { onDeleted } : {})}
-                  {...(onDragStartFile ? { onDragStartFile } : {})}
-                />
-              ) : null}
-            </Fragment>
+            <DirectoryBranch
+              key={fullPath}
+              fullPath={fullPath}
+              name={entry.name}
+              root={root}
+              open={open}
+              depth={depth}
+              sessionId={sessionId}
+              expanded={expanded}
+              gitByPath={gitByPath}
+              scrollRef={scrollRef}
+              onToggle={onToggle}
+              onOpen={onOpen}
+              ops={ops}
+              {...(onRenamed ? { onRenamed } : {})}
+              {...(onDeleted ? { onDeleted } : {})}
+              {...(onDragStartFile ? { onDragStartFile } : {})}
+            />
           );
         }
         const status = gitByPath.get(comparablePath(fullPath));
@@ -392,10 +432,84 @@ function DirectoryList({
           />
         );
       })}
+      {end < count ? <div style={{ height: (count - end) * ROW_HEIGHT }} /> : null}
       {entries.length > MAX_ENTRIES ? (
         <div className={styles.treeStatus}>Showing first {MAX_ENTRIES} of {entries.length}</div>
       ) : null}
-    </>
+    </div>
+  );
+}
+
+function DirectoryBranch(props: {
+  fullPath: string;
+  name: string;
+  root: string;
+  open: boolean;
+  depth: number;
+  sessionId: string;
+  expanded: readonly string[];
+  gitByPath: Map<string, GitFileStatus>;
+  scrollRef: RefObject<HTMLDivElement | null>;
+  onToggle: (path: string) => void;
+  onOpen: (path: string, preview: boolean) => void;
+  ops: TreeOps;
+  onRenamed?: (from: string, to: string) => void;
+  onDeleted?: (path: string) => void;
+  onDragStartFile?: (event: DragEvent<HTMLDivElement>, path: string, root: string) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [seen, setSeen] = useState(false);
+  const { scrollRef, open, fullPath } = props;
+
+  useEffect(() => {
+    const node = rowRef.current;
+    const parent = scrollRef.current;
+    if (!node || seen || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((observed) => {
+      if (observed.some((entry) => entry.isIntersecting)) setSeen(true);
+    }, { root: parent, rootMargin: "160px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [scrollRef, seen]);
+
+  return (
+    <Fragment>
+      <TreeRow
+        rowRef={rowRef}
+        fullPath={fullPath}
+        name={props.name}
+        root={props.root}
+        isDir
+        open={open}
+        depth={props.depth}
+        onToggle={(path) => {
+          setSeen(true);
+          props.onToggle(path);
+        }}
+        onOpen={props.onOpen}
+        ops={props.ops}
+        {...(props.onRenamed ? { onRenamed: props.onRenamed } : {})}
+        {...(props.onDeleted ? { onDeleted: props.onDeleted } : {})}
+        {...(props.onDragStartFile ? { onDragStartFile: props.onDragStartFile } : {})}
+      />
+      {open && seen ? (
+        <DirectoryList
+          path={fullPath}
+          root={props.root}
+          depth={props.depth + 1}
+          sessionId={props.sessionId}
+          expanded={props.expanded}
+          gitByPath={props.gitByPath}
+          scrollRef={scrollRef}
+          onToggle={props.onToggle}
+          onOpen={props.onOpen}
+          ops={props.ops}
+          {...(props.onRenamed ? { onRenamed: props.onRenamed } : {})}
+          {...(props.onDeleted ? { onDeleted: props.onDeleted } : {})}
+          {...(props.onDragStartFile ? { onDragStartFile: props.onDragStartFile } : {})}
+        />
+      ) : null}
+    </Fragment>
   );
 }
 
@@ -409,6 +523,7 @@ interface TreeRowProps {
   open?: boolean;
   status?: GitFileStatus;
   depth: number;
+  rowRef?: Ref<HTMLDivElement>;
   onToggle: (path: string) => void;
   onOpen: (path: string, preview: boolean) => void;
   ops: TreeOps;
@@ -425,6 +540,7 @@ function TreeRow({
   open = false,
   status,
   depth,
+  rowRef,
   onToggle,
   onOpen,
   ops,
@@ -470,7 +586,7 @@ function TreeRow({
 
   if (mode === "rename") {
     return (
-      <div className={styles.treeRow} style={indent}>
+      <div ref={rowRef} className={styles.treeRow} style={indent}>
         <input
           className={styles.inlineInput}
           value={draftName}
@@ -495,7 +611,7 @@ function TreeRow({
 
   if (mode === "confirm") {
     return (
-      <div className={`${styles.treeRow} ${styles.confirmRow}`} style={indent}>
+      <div ref={rowRef} className={`${styles.treeRow} ${styles.confirmRow}`} style={indent}>
         <span className={styles.confirmText} title={fullPath}>
           Delete {name}{isDir ? " (directory)" : ""}?
         </span>
@@ -507,6 +623,7 @@ function TreeRow({
 
   return (
     <div
+      ref={rowRef}
       className={styles.treeRow}
       style={indent}
       draggable={!isDir}

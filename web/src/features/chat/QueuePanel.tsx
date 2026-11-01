@@ -1,8 +1,9 @@
 import type { JSX } from "react";
-import styles from "./queue-panel.module.css";
+import type { QueueClasses } from "./classes";
 
 export interface QueuePanelProps {
   queue: { steering: string[]; followUp: string[] };
+  classes: QueueClasses;
   pending?: boolean;
   onRemove: (queue: "steering" | "followUp", text: string) => void | Promise<void>;
   onPromote: (text: string) => void | Promise<void>;
@@ -10,6 +11,7 @@ export interface QueuePanelProps {
 
 export function QueuePanel({
   queue,
+  classes,
   pending = false,
   onRemove,
   onPromote,
@@ -18,18 +20,18 @@ export function QueuePanel({
   if (total === 0) return null;
 
   return (
-    <section className={styles.panel} aria-label="Queued messages">
-      <header className={styles.header}>Queue ({total})</header>
+    <section className={classes.panel} aria-label="Queued messages">
+      <header className={classes.header}>Queue ({total})</header>
       {queue.steering.length > 0 ? (
-        <div className={styles.group}>
-          <span className={styles.groupLabel}>Steering</span>
-          <ul className={styles.list}>
+        <div className={classes.group}>
+          <span className={classes.groupLabel}>Steering</span>
+          <ul className={classes.list}>
             {queue.steering.map((text, index) => (
-              <li key={`steering-${index}`} className={styles.row}>
-                <span className={styles.text}>{text}</span>
+              <li key={`steering-${index}`} className={classes.row}>
+                <span className={classes.text}>{text}</span>
                 <button
                   type="button"
-                  className={styles.remove}
+                  className={classes.remove}
                   onClick={() => void onRemove("steering", text)}
                   aria-label={`Remove ${text}`}
                   disabled={pending}
@@ -42,15 +44,15 @@ export function QueuePanel({
         </div>
       ) : null}
       {queue.followUp.length > 0 ? (
-        <div className={styles.group}>
-          <span className={styles.groupLabel}>Follow-up</span>
-          <ul className={styles.list}>
+        <div className={classes.group}>
+          <span className={classes.groupLabel}>Follow-up</span>
+          <ul className={classes.list}>
             {queue.followUp.map((text, index) => (
-              <li key={`followUp-${index}`} className={styles.row}>
-                <span className={styles.text}>{text}</span>
+              <li key={`followUp-${index}`} className={classes.row}>
+                <span className={classes.text}>{text}</span>
                 <button
                   type="button"
-                  className={styles.promote}
+                  className={classes.promote}
                   onClick={() => void onPromote(text)}
                   aria-label={`Steer ${text}`}
                   disabled={pending}
@@ -59,7 +61,7 @@ export function QueuePanel({
                 </button>
                 <button
                   type="button"
-                  className={styles.remove}
+                  className={classes.remove}
                   onClick={() => void onRemove("followUp", text)}
                   aria-label={`Remove ${text}`}
                   disabled={pending}

@@ -4,10 +4,20 @@ import { fetchDefaultCwd, validateCwd } from "@/api/agent";
 import type { ModelCatalog } from "@/api/agent";
 import { basename, comparablePath } from "@/api/paths";
 import type { ProjectSummary } from "@/api/workspace";
+import type { ComposerClasses, ModelPickerClasses } from "./classes";
 import { Composer } from "./Composer";
 import { CwdPicker } from "./CwdPicker";
 import { ModelPicker } from "./ModelPicker";
+import composerStyles from "./new-session-composer.module.css";
+import pickerStyles from "./new-session-model-picker.module.css";
 import styles from "./new-session.module.css";
+
+/**
+ * The new-session pane is its own surface: it keeps a compact composer look
+ * independent of whatever skin renders the chat column.
+ */
+const composerClasses = composerStyles as unknown as ComposerClasses;
+const modelPickerClasses = pickerStyles as unknown as ModelPickerClasses;
 
 export interface NewSessionInputView {
   cwd: string;
@@ -216,6 +226,7 @@ export function NewSessionPane({
         <div className={styles.composerWrap}>
           <Composer
             value={text}
+            classes={composerClasses}
             onChange={setText}
             onSubmit={(draft) => submit(draft)}
             running={false}
@@ -226,6 +237,7 @@ export function NewSessionPane({
             hint="Enter to start · Shift+Enter for a new line"
             controls={
               <ModelPicker
+                classes={modelPickerClasses}
                 models={models.modelList}
                 model={effectiveModel}
                 thinkingLevel={thinking}

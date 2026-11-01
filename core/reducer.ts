@@ -1,4 +1,4 @@
-import type { AgentMessage, UserMessage } from "./types";
+import type { AgentMessage, AssistantMessage, ToolResultMessage, UserMessage } from "./types";
 import { isRecord } from "./guards";
 import {
   isTerminalAgentEnd,
@@ -13,11 +13,15 @@ import {
 import {
   MAX_NOTICES,
   hasVisibleAssistantContent,
+  isHoldableAssistant,
   userMessageText,
   type ConnectionStatus,
   type Notice,
   type SessionState,
+  type StreamState,
 } from "./state";
+
+const IDLE_STREAM: StreamState = { active: false, message: null, held: [] };
 
 /**
  * Pure transition function for one session.
@@ -80,7 +84,7 @@ export function reduce(state: SessionState, action: SessionAction): SessionState
         messages: [],
         entryIds: [],
         optimistic: null,
-        stream: { active: false, message: null, held: false },
+        stream: IDLE_STREAM,
         queue: { steering: [], followUp: [], revision: state.queue.revision + 1 },
         toolResults: {},
         run: { ...state.run, status: "idle", hadContent: false, error: null },
@@ -95,7 +99,7 @@ export function reduce(state: SessionState, action: SessionAction): SessionState
     case "clear-live":
       return {
         ...state,
-        stream: { active: false, message: null, held: false },
+        stream: IDLE_STREAM,
         toolResults: {},
       };
     case "stream-reset":
@@ -103,7 +107,7 @@ export function reduce(state: SessionState, action: SessionAction): SessionState
         ...state,
         streamId: action.streamId,
         sequence: 0,
-        stream: { active: false, message: null, held: false },
+        stream: IDLE_STREAM,
         toolResults: {},
       };
     default:
@@ -125,7 +129,7 @@ function applyConnection(
     sequence: streamChanged ? 0 : state.sequence,
     // A new stream means the runtime restarted: live snapshots and ordering
     // from the previous one are meaningless, and the transcript must be re-read.
-    stream: streamChanged ? { active: false, message: null, held: false } : state.stream,
+    stream: streamChanged ? IDLE_STREAM : state.stream,
     toolResults: streamChanged ? {} : state.toolResults,
     historyRevision: streamChanged ? state.historyRevision + 1 : state.historyRevision,
   };
@@ -152,20 +156,25 @@ function applyFrame(state: SessionState, frame: WireEvent, at: number): SessionS
       return {
         ...next,
         run: { status: "running", id: next.run.id + 1, hadContent: false, error: null },
-        stream: { active: true, message: null, held: false },
-        toolResults: {},
+        // Keep finished steps from the previous turn until history echoes them.
+        stream: { active: true, message: null, held: next.stream.held },
         historyRevision: next.historyRevision + 1,
       };
 
     case "message_start":
-      return { ...next, stream: { active: true, message: next.stream.message, held: false } };
+      // A new message may be a steering prompt while a partial reply is still
+      // on screen; keep that partial until its own message_end arrives.
+      return {
+        ...next,
+        stream: { active: true, message: next.stream.message, held: next.stream.held },
+      };
 
     case "message_update": {
       const message = readAssistantPayload(frame.message);
       if (!message) return next;
       return {
         ...next,
-        stream: { active: true, message, held: false },
+        stream: { active: true, message, held: next.stream.held },
         run: {
           ...next.run,
           hadContent: next.run.hadContent || hasVisibleAssistantContent(message),
@@ -178,11 +187,10 @@ function applyFrame(state: SessionState, frame: WireEvent, at: number): SessionS
       const toolCallId = isRecord(raw) && raw.role === "toolResult" && typeof raw.toolCallId === "string"
         ? raw.toolCallId
         : null;
-      let toolResults = next.toolResults;
-      if (toolCallId && toolCallId in toolResults) {
-        const { [toolCallId]: _removed, ...rest } = toolResults;
-        toolResults = rest;
-      }
+      const settled = toolCallId ? readToolResult(raw, toolCallId, false) : null;
+      const toolResults = settled
+        ? { ...next.toolResults, [settled.toolCallId]: settleToolResult(next.toolResults[settled.toolCallId], settled) }
+        : next.toolResults;
       const payload = readAssistantPayload(raw);
       // A user steering message or a tool result does not end the assistant
       // stream; only the assistant message itself does.
@@ -191,7 +199,7 @@ function applyFrame(state: SessionState, frame: WireEvent, at: number): SessionS
       return {
         ...next,
         toolResults,
-        stream: { active: false, message: visible ? payload : null, held: visible },
+        stream: { active: false, message: null, held: retainAssistant(next.stream.held, payload) },
         run: { ...next.run, hadContent: next.run.hadContent || visible },
       };
     }
@@ -204,7 +212,6 @@ function applyFrame(state: SessionState, frame: WireEvent, at: number): SessionS
         ...withNotice,
         run: { ...withNotice.run, status: "idle", error },
         stream: { ...withNotice.stream, active: false },
-        toolResults: {},
         lastError: error ?? withNotice.lastError,
         // The wrapper clears live output before handing us agent_end, and the
         // committed messages only exist in the session file. Re-read on every
@@ -227,9 +234,15 @@ function applyFrame(state: SessionState, frame: WireEvent, at: number): SessionS
 
     case "tool_execution_end": {
       const toolCallId = typeof frame.toolCallId === "string" ? frame.toolCallId : null;
-      if (!toolCallId || !(toolCallId in next.toolResults)) return next;
-      const { [toolCallId]: _removed, ...rest } = next.toolResults;
-      return { ...next, toolResults: rest };
+      const incoming = readToolResult(frame, toolCallId, false);
+      if (!incoming || !toolCallId) return next;
+      return {
+        ...next,
+        toolResults: {
+          ...next.toolResults,
+          [toolCallId]: settleToolResult(next.toolResults[toolCallId], incoming),
+        },
+      };
     }
 
     case "queue_update": {
@@ -293,19 +306,60 @@ function applyHistory(
     entryIds,
     optimistic,
     stream: releaseHeldStream(state.stream, messages),
+    toolResults: releaseCommittedTools(state.toolResults, messages),
   };
 }
 
-/** Drop a finished reply once the committed transcript shows it. */
-function releaseHeldStream(
-  stream: SessionState["stream"],
+/** Keep streamed output when the end frame has no content of its own. */
+function settleToolResult(
+  existing: ToolResultMessage | undefined,
+  incoming: ToolResultMessage,
+): ToolResultMessage {
+  const content = incoming.content.length > 0 ? incoming.content : existing?.content ?? [];
+  return { ...existing, ...incoming, content, partial: false };
+}
+
+/** Drop a live tool result once the committed transcript has that call. */
+function releaseCommittedTools(
+  toolResults: SessionState["toolResults"],
   messages: AgentMessage[],
-): SessionState["stream"] {
-  if (stream.active || !stream.held || !stream.message) return stream;
-  const timestamp = stream.message.timestamp;
-  const committed = timestamp === undefined
-    || messages.some((message) => message.role === "assistant" && message.timestamp === timestamp);
-  return committed ? { active: false, message: null, held: false } : stream;
+): SessionState["toolResults"] {
+  const committed = new Set<string>();
+  for (const message of messages) {
+    if (message.role === "toolResult" && message.toolCallId) committed.add(message.toolCallId);
+  }
+  if (committed.size === 0) return toolResults;
+  let changed = false;
+  const next: SessionState["toolResults"] = {};
+  for (const [id, result] of Object.entries(toolResults)) {
+    if (committed.has(id)) changed = true;
+    else next[id] = result;
+  }
+  return changed ? next : toolResults;
+}
+
+/** Append one finished assistant step, ignoring empties and duplicate timestamps. */
+function retainAssistant(
+  held: Partial<AssistantMessage>[],
+  message: Partial<AssistantMessage> | null,
+): Partial<AssistantMessage>[] {
+  if (!message || !isHoldableAssistant(message)) return held;
+  const timestamp = message.timestamp;
+  if (timestamp !== undefined && held.some((item) => item.timestamp === timestamp)) return held;
+  return [...held, message];
+}
+
+/** Drop finished replies once the committed transcript shows them. */
+function releaseHeldStream(stream: StreamState, messages: AgentMessage[]): StreamState {
+  if (stream.held.length === 0) return stream;
+  const held = stream.held.filter((message) => !assistantCommitted(message, messages));
+  return held.length === stream.held.length ? stream : { ...stream, held };
+}
+
+function assistantCommitted(message: Partial<AssistantMessage>, messages: AgentMessage[]): boolean {
+  // No timestamp means the next history read is the only signal we get.
+  if (message.timestamp === undefined) return true;
+  return messages.some((item) => item.role === "assistant" && item.timestamp === message.timestamp);
 }
 
 /** Deterministic id: the reducer stays a pure function of state and input. */

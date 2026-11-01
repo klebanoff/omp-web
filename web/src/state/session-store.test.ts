@@ -17,7 +17,7 @@ function snapshot(overrides: Partial<SessionSnapshot["session"]> = {}): SessionS
       run: { status: "idle", error: null },
       messages: [],
       entryIds: [],
-      stream: { active: false, message: null, held: false },
+      stream: { active: false, message: null, held: [] },
       queue: { steering: [], followUp: [] },
       notices: [],
       historyRevision: 1,

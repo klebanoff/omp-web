@@ -62,6 +62,14 @@ export function RefreshIcon(props: Props) {
   );
 }
 
+export function FolderIcon(props: Props) {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2.5h6A2.5 2.5 0 0 1 20.5 10v7A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17V7.5Z" />
+    </Icon>
+  );
+}
+
 export function ChevronIcon(props: Props) {
   return (
     <Icon {...props}>

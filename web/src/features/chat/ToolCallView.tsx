@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import type { ChatMessage } from "@/api/session-types";
+import type { TranscriptClasses } from "./classes";
 import { MessageImage } from "./MessageImage";
 import {
   joinClassNames,
@@ -8,10 +9,10 @@ import {
   toolResultText,
   type ToolCallBlock,
 } from "./transcript";
-import styles from "./transcript.module.css";
 
 export interface ToolResultViewProps {
   content: unknown;
+  classes: TranscriptClasses;
   isError?: boolean;
   partial?: boolean;
 }
@@ -19,6 +20,7 @@ export interface ToolResultViewProps {
 /** Text and images of a tool result; shared by paired and standalone results. */
 export function ToolResultView({
   content,
+  classes,
   isError = false,
   partial = false,
 }: ToolResultViewProps): JSX.Element {
@@ -28,66 +30,102 @@ export function ToolResultView({
 
   return (
     <div
-      className={joinClassNames(styles.toolResult, isError && styles.toolResultError)}
+      className={joinClassNames(classes.toolResult, isError && classes.toolResultError)}
       data-error={isError ? "true" : "false"}
     >
-      {text !== "" ? <pre className={styles.toolOutput}>{text}</pre> : null}
+      {text !== "" ? <pre className={classes.toolOutput}>{text}</pre> : null}
       {images.length > 0 ? (
-        <div className={styles.toolImages}>
+        <div className={classes.toolImages}>
           {images.map((src, index) => (
-            <MessageImage key={`${index}-${src}`} image={src} alt={`tool result image ${index + 1}`} />
+            <MessageImage
+              key={`${index}-${src}`}
+              image={src}
+              classes={classes}
+              alt={`tool result image ${index + 1}`}
+            />
           ))}
         </div>
       ) : null}
       {empty ? (
-        <p className={styles.muted}>{partial ? "Partial output…" : "No output."}</p>
+        <p className={classes.muted}>{partial ? "Partial output…" : "No output."}</p>
       ) : null}
-      {partial && !empty ? <span className={styles.toolPartial}>partial</span> : null}
+      {partial && !empty ? <span className={classes.toolPartial}>partial</span> : null}
     </div>
   );
 }
 
 export interface ToolCallViewProps {
   call: ToolCallBlock;
+  classes: TranscriptClasses;
   result?: ChatMessage | null;
   streaming?: boolean;
 }
 
-/** Collapsible tool call with pretty-printed arguments and its paired result. */
-export function ToolCallView({ call, result = null, streaming = false }: ToolCallViewProps): JSX.Element {
+function firstLine(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const line = value.split("\n")[0] ?? "";
+  return line.trim();
+}
+
+/** The short name omp puts on a call (`i`), then a description, then the command or path. */
+function toolSummaryLine(call: ToolCallBlock): string {
+  const input = call.input;
+  return firstLine(input.i)
+    || firstLine(input.description)
+    || firstLine(input.command)
+    || firstLine(input.path)
+    || firstLine(input.file_path)
+    || firstLine(input.query)
+    || firstLine(input.pattern);
+}
+
+function isShell(name: string): boolean {
+  return name === "bash" || name === "pwsh";
+}
+
+/** Collapsible tool call: a one-line summary, and the output only when opened. */
+export function ToolCallView({
+  call,
+  classes,
+  result = null,
+  streaming = false,
+}: ToolCallViewProps): JSX.Element {
   const isError = result?.isError === true;
-  const hasResult = result !== null;
-  const hasArguments = Object.keys(call.input).length > 0;
-  const status = isError ? "error" : hasResult ? "done" : streaming ? "running…" : "awaiting result";
+  const partial = result?.partial === true;
+  const settled = result !== null && !partial;
+  const shell = isShell(call.toolName);
+  const summary = toolSummaryLine(call);
+  const showArgs = !shell && Object.keys(call.input).length > 0;
+  const status = isError ? "error" : !settled && (streaming || partial) ? "running…" : !settled && summary === "" ? "awaiting result" : "";
+  const forceOpen = streaming && !settled;
 
   return (
     <details
-      className={joinClassNames(styles.toolCall, isError && styles.toolCallError)}
+      className={joinClassNames(classes.toolCall, isError && classes.toolCallError)}
       data-error={isError ? "true" : "false"}
-      data-pending={hasResult ? "false" : "true"}
+      data-pending={settled ? "false" : "true"}
+      {...(forceOpen ? { open: true } : {})}
     >
-      <summary className={styles.toolSummary}>
-        <span className={styles.toolName}>{call.toolName || "tool"}</span>
-        <span
-          className={joinClassNames(
-            styles.toolStatus,
-            !hasResult && styles.toolRunning,
-            isError && styles.toolError,
-          )}
-        >
-          {status}
-        </span>
+      <summary className={classes.toolSummary}>
+        <span className={classes.toolName}>{call.toolName || "tool"}</span>
+        {summary !== "" ? <span className={classes.toolStatus}>{summary}</span> : null}
+        {status !== "" ? (
+          <span className={joinClassNames(!settled && classes.toolRunning, isError && classes.toolError)}>
+            {status}
+          </span>
+        ) : null}
       </summary>
-      <div className={styles.toolBody}>
-        {hasArguments ? <pre className={styles.toolArgs}>{prettyJson(call.input)}</pre> : null}
+      <div className={classes.toolBody}>
+        {showArgs ? <pre className={classes.toolArgs}>{prettyJson(call.input)}</pre> : null}
         {result !== null ? (
           <ToolResultView
             content={result.content}
+            classes={classes}
             isError={isError}
             partial={result.partial === true}
           />
         ) : (
-          <p className={styles.toolPending}>No result yet.</p>
+          <p className={classes.toolPending}>No result yet.</p>
         )}
       </div>
     </details>

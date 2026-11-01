@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   contentBlocks,
+  hasVisibleLiveBody,
   imageSrc,
   joinClassNames,
+  messagePreview,
   prettyJson,
   roleLabel,
   toolResultImages,
@@ -149,6 +151,29 @@ describe("roleLabel", () => {
   it("falls back to the raw role or 'message'", () => {
     expect(roleLabel("narrator")).toBe("narrator");
     expect(roleLabel("   ")).toBe("message");
+  });
+});
+
+describe("messagePreview", () => {
+  it("uses the first plain line and leaves markdown markers in place", () => {
+    expect(messagePreview({ content: "**bold** line\n\nsecond" })).toBe("**bold** line");
+  });
+
+  it("falls back to a tool name, command, or code when there is no text", () => {
+    expect(messagePreview({ content: [{ type: "toolCall", toolCallId: "t", toolName: "bash", input: {} }] })).toBe("bash");
+    expect(messagePreview({ content: "", command: "ls -la" })).toBe("ls -la");
+    expect(messagePreview({ content: "", code: "print(1)\nprint(2)" })).toBe("print(1)");
+  });
+});
+
+describe("hasVisibleLiveBody", () => {
+  it("treats thinking, tools, images, and non-empty text as visible", () => {
+    expect(hasVisibleLiveBody(null)).toBe(false);
+    expect(hasVisibleLiveBody({ content: "" })).toBe(false);
+    expect(hasVisibleLiveBody({ content: "   " })).toBe(false);
+    expect(hasVisibleLiveBody({ content: [{ type: "thinking", thinking: "" }] })).toBe(true);
+    expect(hasVisibleLiveBody({ content: [{ type: "toolCall", toolCallId: "t", toolName: "read", input: {} }] })).toBe(true);
+    expect(hasVisibleLiveBody({ content: "hello" })).toBe(true);
   });
 });
 

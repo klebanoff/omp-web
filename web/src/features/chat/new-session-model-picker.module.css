@@ -1,3 +1,4 @@
+/* New-session pane only: the chat column's picker look lives in the skin. */
 .picker {
   display: flex;
   min-width: 0;

@@ -30,8 +30,11 @@ The browser holds **one** SSE response and multiplexes every channel over it.
 - `snapshot` is the **UI contract**: the server-side core model
   (`core/machine.ts`). Shape: `{ type: "snapshot", revision, history, snapshot }`.
   `snapshot.session` is `SessionState`; `branching` and `draft` accompany it.
-  `history: true` means `messages` and `entryIds` are included; later frames
-  omit them until `revision` changes.
+  `history: true` means `messages` and `entryIds` are included. The browser
+  session channel sends `history: false`: the transcript is a window loaded
+  from `GET /api/agent/sessions/{id}/context?sync=1` (tail, then older pages,
+  then a forward page when `revision` changes). A `history: false` frame
+  merges into the previous snapshot and does not replace that window.
 - Raw omp frames keep their native shape with a `web` cursor. They are a debug
   channel and must not be used as the UI state source.
 - Under backpressure the server coalesces `message_update` and `snapshot`

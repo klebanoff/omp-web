@@ -68,34 +68,64 @@ test("message_end holds a finished reply until history contains it", () => {
     { type: "frame", at: 1002, frame: frame("message_end", { message: { role: "assistant", content: [{ type: "text", text: "answer" }], timestamp: 42 } }, 3) },
   ]);
   assert.equal(state.stream.active, false);
-  assert.equal(state.stream.held, true);
-  assert.equal(state.stream.message.content[0].text, "answer");
+  assert.equal(state.stream.message, null);
+  assert.equal(state.stream.held.length, 1);
+  assert.equal(state.stream.held[0].content[0].text, "answer");
 
   const withoutEcho = reduce(state, { type: "history", messages: [{ role: "user", content: "hi" }], entryIds: ["e1"] });
-  assert.equal(withoutEcho.stream.held, true, "an unrelated history must not drop the reply");
+  assert.equal(withoutEcho.stream.held.length, 1, "an unrelated history must not drop the reply");
 
   const withEcho = reduce(state, {
     type: "history",
     messages: [{ role: "assistant", content: [{ type: "text", text: "answer" }], timestamp: 42 }],
     entryIds: ["e2"],
   });
-  assert.deepEqual(withEcho.stream, { active: false, message: null, held: false });
+  assert.deepEqual(withEcho.stream, { active: false, message: null, held: [] });
+});
+
+test("a later assistant step keeps earlier finished replies", () => {
+  const first = { role: "assistant", content: [{ type: "text", text: "looking" }], timestamp: 1 };
+  const second = { role: "assistant", content: [{ type: "text", text: "done" }], timestamp: 2 };
+  const state = run(streamingState(), [
+    { type: "frame", at: 1001, frame: frame("message_end", { message: first }, 2) },
+    { type: "frame", at: 1002, frame: frame("message_start", {}, 3) },
+    { type: "frame", at: 1003, frame: frame("message_update", { message: second }, 4) },
+    { type: "frame", at: 1004, frame: frame("message_end", { message: second }, 5) },
+  ]);
+  assert.deepEqual(state.stream.held.map((message) => message.content[0].text), ["looking", "done"]);
+
+  const partial = reduce(state, { type: "history", messages: [first], entryIds: ["e1"] });
+  assert.deepEqual(partial.stream.held.map((message) => message.timestamp), [2]);
+});
+
+test("a tool-only assistant step stays held", () => {
+  const state = run(streamingState(), [
+    {
+      type: "frame",
+      at: 1001,
+      frame: frame("message_end", {
+        message: { role: "assistant", content: [{ type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} }], timestamp: 7 },
+      }, 2),
+    },
+  ]);
+  assert.equal(state.stream.held.length, 1);
+  assert.equal(state.stream.held[0].content[0].toolName, "bash");
 });
 
 test("a held reply without a timestamp releases on the next history read", () => {
   const state = run(streamingState(), [
     { type: "frame", at: 1001, frame: frame("message_end", { message: { role: "assistant", content: [{ type: "text", text: "answer" }] } }, 2) },
   ]);
-  assert.equal(state.stream.held, true);
+  assert.equal(state.stream.held.length, 1);
   const released = reduce(state, { type: "history", messages: [], entryIds: [] });
-  assert.equal(released.stream.held, false);
+  assert.deepEqual(released.stream.held, []);
 });
 
 test("an empty assistant message is not held", () => {
   const state = run(streamingState(), [
     { type: "frame", at: 1001, frame: frame("message_end", { message: { role: "assistant", content: [{ type: "text", text: "   " }] } }, 2) },
   ]);
-  assert.deepEqual(state.stream, { active: false, message: null, held: false });
+  assert.deepEqual(state.stream, { active: false, message: null, held: [] });
 });
 
 test("the optimistic prompt lives until history echoes it", () => {
@@ -175,15 +205,32 @@ test("queue snapshots replace the queue and bump its revision", () => {
   assert.equal(bad.queue.revision, 1, "a rejected snapshot does not bump the revision");
 });
 
-test("live tool results are recorded as partial results and cleared by a new run", () => {
+test("live tool results stay after the tool ends until history echoes them", () => {
   const state = run(streamingState(), [
-    { type: "frame", at: 1001, frame: frame("tool_execution_start", { toolCallId: "call-1", toolName: "bash", content: [{ type: "text", text: "ls" }] }, 2) },
+    { type: "frame", at: 1001, frame: frame("tool_execution_start", { toolCallId: "call-1", toolName: "bash", partialResult: { content: [{ type: "text", text: "working" }] } }, 2) },
+    { type: "frame", at: 1002, frame: frame("tool_execution_end", { toolCallId: "call-1", toolName: "bash", result: { content: [{ type: "text", text: "done" }] } }, 3) },
   ]);
-  assert.equal(state.toolResults["call-1"].partial, true);
-  assert.equal(state.toolResults["call-1"].toolName, "bash");
+  assert.equal(state.toolResults["call-1"].partial, false);
+  assert.equal(state.toolResults["call-1"].content[0].text, "done");
 
-  const restarted = reduce(state, { type: "frame", at: 1002, frame: frame("agent_start", {}, 3) });
-  assert.deepEqual(restarted.toolResults, {});
+  const restarted = reduce(state, { type: "frame", at: 1003, frame: frame("agent_start", {}, 4) });
+  assert.equal(restarted.toolResults["call-1"].content[0].text, "done", "a new run must not drop finished output");
+
+  const echoed = reduce(state, {
+    type: "history",
+    messages: [{ role: "toolResult", toolCallId: "call-1", content: [{ type: "text", text: "done" }] }],
+    entryIds: ["e1"],
+  });
+  assert.equal(echoed.toolResults["call-1"], undefined);
+});
+
+test("an end frame without output keeps the streamed partial", () => {
+  const state = run(streamingState(), [
+    { type: "frame", at: 1001, frame: frame("tool_execution_update", { toolCallId: "call-1", toolName: "bash", partialResult: { content: [{ type: "text", text: "working" }] } }, 2) },
+    { type: "frame", at: 1002, frame: frame("tool_execution_end", { toolCallId: "call-1" }, 3) },
+  ]);
+  assert.equal(state.toolResults["call-1"].partial, false);
+  assert.equal(state.toolResults["call-1"].content[0].text, "working");
 });
 
 test("notices keep only the most recent five", () => {

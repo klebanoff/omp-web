@@ -1,48 +1,40 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { isRecord } from "@/api/guards";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { basename } from "@/api/paths";
-import type { ChatMessage, SessionSnapshot } from "@/api/session-types";
-import type { SessionContextPayload } from "@/api/workspace";
+import type { SessionSnapshot } from "@/api/session-types";
 import { readDragPayload } from "@/drag/payload";
-import { Composer } from "@/features/chat/Composer";
+import { ComposerDock } from "@/features/chat/ComposerDock";
+import { DeferredMessage } from "@/features/chat/DeferredMessage";
 import { ExtensionDialog } from "@/features/chat/ExtensionDialog";
 import { MessageView } from "@/features/chat/MessageView";
 import { ModelPicker } from "@/features/chat/ModelPicker";
 import { QueuePanel } from "@/features/chat/QueuePanel";
-import { contentBlocks } from "@/features/chat/transcript";
 import { composerUsageStats, formatTokens } from "@/features/chat/composer-stats";
 import { CacheIcon, StepsIcon, TokensIcon, TurnsIcon } from "@/features/chat/icons";
-import type { ChatSlotProps, ComposerSubmitMode } from "@/slots/chat";
-import { seedComposerDraft, setComposerDraft } from "@/state/composer-store";
-import { useComposerDraft } from "@/state/use-composer-draft";
+import { hasVisibleLiveBody } from "@/features/chat/transcript";
+import {
+  eagerTailStart,
+  pairToolResults,
+  toolCallIds,
+  transcriptRows,
+  withOptimistic,
+} from "@/features/chat/transcript-rows";
+import { useTranscriptScroll } from "@/features/chat/transcript-scroll";
+import type { ChatSlotProps } from "@/slots/chat";
+import { seedComposerDraft } from "@/state/composer-store";
+import { dshChatClasses } from "./classes";
 import styles from "./chat.module.css";
 
 const EMPTY_NOTICES: SessionSnapshot["session"]["notices"] = [];
-/** Markdown rendering is the expensive part; keep very long transcripts usable. */
-const MAX_RENDERED_MESSAGES = 200;
-
-function contextMessages(context: SessionContextPayload | undefined): ChatMessage[] {
-  const raw = context?.context?.messages;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter(isRecord)
-    .filter((message) => typeof message.role === "string")
-    .map((message) => {
-      const { role, content, timestamp, ...rest } = message;
-      return {
-        ...rest,
-        role: role as string,
-        content,
-        ...(typeof timestamp === "number" ? { timestamp } : {}),
-      };
-    });
-}
 
 export function ChatSkin({
   session,
   selected,
   snapshot,
-  context,
+  historyMessages,
+  historyEntryIds,
+  hasOlderHistory,
+  historyOlderEpoch,
+  onLoadOlderHistory,
   streamError,
   extensionRequest,
   extensionBusy,
@@ -65,94 +57,58 @@ export function ChatSkin({
   onPromoteQueued,
   onDropPayload,
 }: ChatSlotProps) {
-  const draft = useComposerDraft(selected);
   const [dropActive, setDropActive] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);
 
-  const messages = useMemo(() => {
-    const live = snapshot?.session.messages;
-    const optimistic = snapshot?.session.optimistic;
-    if (live || optimistic) {
-      return [...(live ?? []), ...(optimistic ? [optimistic] : [])];
-    }
-    return contextMessages(context);
-  }, [context, snapshot]);
+  const optimistic = snapshot?.session.optimistic ?? null;
+  const messages = useMemo(() => withOptimistic(historyMessages, optimistic), [historyMessages, optimistic]);
 
-  // The optimistic prompt is always the tail of `messages`; it has no server
-  // entry id, so deferred thinking lookups must skip it.
-  const optimisticIndex = useMemo(() => {
-    if (!snapshot?.session.optimistic) return -1;
-    return snapshot.session.messages?.length ?? 0;
-  }, [snapshot]);
+  const toolResults = useMemo(
+    () => pairToolResults(messages, snapshot?.session.toolResults),
+    [messages, snapshot],
+  );
 
-  const toolResults = useMemo(() => {
-    const results = new Map<string, ChatMessage>();
-    for (const message of messages) {
-      if (message.role !== "toolResult" || typeof message.toolCallId !== "string") continue;
-      results.set(message.toolCallId, message);
-    }
-    const live = snapshot?.session.toolResults;
-    if (live) {
-      for (const [key, value] of Object.entries(live)) {
-        if (!isRecord(value) || value.role !== "toolResult") continue;
-        const callId = typeof value.toolCallId === "string" && value.toolCallId !== "" ? value.toolCallId : key;
-        results.set(callId, value as ChatMessage);
-      }
-    }
-    return results;
-  }, [messages, snapshot]);
+  const heldMessages = snapshot?.session.stream.held ?? [];
+  const streamMessage = snapshot?.session.stream.active ? snapshot.session.stream.message : null;
+  const liveVisible = hasVisibleLiveBody(streamMessage);
 
-  const renderedMessages =
-    messages.length > MAX_RENDERED_MESSAGES ? messages.slice(-MAX_RENDERED_MESSAGES) : messages;
-  const messageOffset = messages.length - renderedMessages.length;
-  const usageStats = useMemo(() => composerUsageStats(messages), [messages]);
+  const callIds = useMemo(
+    () =>
+      toolCallIds(
+        streamMessage
+          ? [...messages, ...heldMessages, streamMessage]
+          : [...messages, ...heldMessages],
+      ),
+    [heldMessages, messages, streamMessage],
+  );
 
-  const toolCallIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const message of renderedMessages) {
-      if (message.role !== "assistant") continue;
-      for (const block of contentBlocks(message.content)) {
-        if (block.type === "toolCall" && block.toolCallId !== "") ids.add(block.toolCallId);
-      }
-    }
-    return ids;
-  }, [renderedMessages]);
+  const rows = useMemo(() => transcriptRows(messages, callIds), [messages, callIds]);
+  const eagerFrom = eagerTailStart(messages.length);
+  const usageStats = useMemo(() => composerUsageStats(historyMessages), [historyMessages]);
 
-  const entryIdAt = (index: number): string | null => {
-    if (index === optimisticIndex) return null;
-    return snapshot?.session.entryIds?.[index] ?? context?.context?.entryIds?.[index] ?? null;
-  };
+  const { scrollRef, onScroll } = useTranscriptScroll({
+    hasOlderHistory,
+    onLoadOlderHistory,
+    dependencies: [
+      heldMessages.length,
+      historyOlderEpoch,
+      liveVisible,
+      messages.length,
+      running,
+      streamMessage,
+    ],
+  });
+
+  const entryIdAt = (index: number): string | null => historyEntryIds[index] ?? null;
 
   const notices = snapshot?.session.notices ?? EMPTY_NOTICES;
 
-  const streamMessage = snapshot?.session.stream.active ? snapshot.session.stream.message : null;
-  const connection = snapshot?.session.connection ?? (context ? "saved" : "idle");
+  const connection = snapshot?.session.connection ?? (session ? "saved" : "idle");
   const serverDraft = snapshot?.draft.value ?? "";
 
   useEffect(() => {
     if (!selected) return;
     seedComposerDraft(selected, serverDraft);
   }, [selected, serverDraft]);
-
-  useEffect(() => {
-    const node = scrollRef.current;
-    if (node && stick.current) node.scrollTop = node.scrollHeight;
-  }, [messages.length, streamMessage]);
-
-  const changeDraft = (value: string) => {
-    if (selected) setComposerDraft(selected, value);
-  };
-
-  const submit = async (text: string, mode: ComposerSubmitMode): Promise<void> => {
-    try {
-      await onSend(text, mode);
-    } catch {
-      // Keep the draft; the stream error is rendered by the composer.
-      return;
-    }
-    if (selected) setComposerDraft(selected, "");
-  };
 
   const handleDragOver = (event: DragEvent<HTMLElement>): void => {
     event.preventDefault();
@@ -177,13 +133,13 @@ export function ChatSkin({
     return (
       <main className={styles.chat}>
         <header className={styles.header}>
-          <div className={styles.headerLeft}>
+          <div className={styles.heading}>
             <span className={styles.title}>No session</span>
           </div>
         </header>
         <section className={styles.empty}>
-          <p>Select a session</p>
-          <p className={styles.muted}>Projects and sessions live in the left rail.</p>
+          <p className={styles.emptyTitle}>Select a session</p>
+          <p className={styles.quiet}>Projects and sessions live in the left rail.</p>
         </section>
       </main>
     );
@@ -195,57 +151,60 @@ export function ChatSkin({
   return (
     <main className={styles.chat}>
       <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <div className={styles.heading}>
-            <span className={styles.title}>{title}</span>
-            <span className={styles.subtitle}>
-              {project ? `${project} · ` : ""}
-              <span className={running ? styles.running : styles.connection}>{running ? "agent running" : connection}</span>
-            </span>
-          </div>
+        <div className={styles.heading}>
+          <span className={styles.title}>{title}</span>
+          {project !== "" ? <span className={styles.project}>{project}</span> : null}
         </div>
+        <span className={styles.status} data-running={running ? "true" : "false"}>
+          <span className={styles.statusDot} aria-hidden="true" />
+          {running ? "running" : connection}
+        </span>
       </header>
 
-      <div className={styles.transcript} ref={scrollRef} onScroll={(event) => {
-        const node = event.currentTarget;
-        stick.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
-      }}>
+      <div className={styles.transcript} ref={scrollRef} onScroll={onScroll}>
         <div className={styles.transcriptInner}>
-          {messages.length === 0 ? <p className={styles.muted}>No messages yet.</p> : null}
-          {messageOffset > 0 ? (
-            <p className={styles.muted}>
-              Showing the last {renderedMessages.length} of {messages.length} messages.
-            </p>
-          ) : null}
-          {renderedMessages.map((message, index) => {
-            const absoluteIndex = messageOffset + index;
-            // A tool result paired with an assistant tool call is rendered
-            // inside that call; only unpaired results get their own row.
-            if (
-              message.role === "toolResult" &&
-              typeof message.toolCallId === "string" &&
-              toolCallIds.has(message.toolCallId)
-            ) {
-              return null;
-            }
-            return (
+          {messages.length === 0 ? <p className={styles.quiet}>No messages yet.</p> : null}
+          {hasOlderHistory ? <p className={styles.quiet}>Scroll up for older messages.</p> : null}
+          {rows.map(({ index, message }) => (
+            <DeferredMessage
+              key={`${selected ?? "none"}-${message.role}-${index}`}
+              message={message}
+              classes={dshChatClasses.transcript}
+              eager={index >= eagerFrom}
+              scrollRoot={scrollRef}
+            >
               <MessageView
-                key={`${selected ?? "none"}-${message.role}-${absoluteIndex}`}
                 message={message}
+                classes={dshChatClasses.transcript}
                 toolResults={toolResults}
                 sessionId={selected}
-                entryId={entryIdAt(absoluteIndex)}
+                entryId={entryIdAt(index)}
               />
-            );
-          })}
-          {streamMessage ? (
+            </DeferredMessage>
+          ))}
+          {heldMessages.map((message, index) => (
+            <MessageView
+              key={`${selected ?? "none"}-held-${typeof message.timestamp === "number" ? message.timestamp : index}`}
+              message={message}
+              classes={dshChatClasses.transcript}
+              toolResults={toolResults}
+              sessionId={selected}
+            />
+          ))}
+          {liveVisible && streamMessage ? (
             <MessageView
               key={`${selected ?? "none"}-stream`}
               message={streamMessage}
+              classes={dshChatClasses.transcript}
               toolResults={toolResults}
               sessionId={selected}
               streaming
             />
+          ) : null}
+          {running && !liveVisible ? (
+            <p className={styles.waiting} role="status">
+              Waiting for the agent…
+            </p>
           ) : null}
           {notices.length > 0 ? (
             <ul className={styles.notices}>
@@ -261,7 +220,7 @@ export function ChatSkin({
       </div>
 
       <footer
-        className={dropActive ? `${styles.composer} ${styles.composerDrop}` : styles.composer}
+        className={styles.composerSeat}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -270,6 +229,7 @@ export function ChatSkin({
           {extensionRequest ? (
             <ExtensionDialog
               request={extensionRequest}
+              classes={dshChatClasses.extensionDialog}
               busy={extensionBusy}
               error={extensionError}
               onRespond={onExtensionResponse}
@@ -277,20 +237,23 @@ export function ChatSkin({
           ) : null}
           <QueuePanel
             queue={queue}
+            classes={dshChatClasses.queue}
             pending={sending}
             onRemove={onRemoveQueued}
             onPromote={onPromoteQueued}
           />
-          <Composer
-            value={draft}
-            onChange={changeDraft}
-            onSubmit={submit}
+          <ComposerDock
+            sessionId={selected}
+            classes={dshChatClasses.composer}
+            onSend={onSend}
             onAbort={onAbort}
             running={running}
             pending={sending}
+            dropActive={dropActive}
             error={streamError}
             controls={
               <ModelPicker
+                classes={dshChatClasses.modelPicker}
                 models={models}
                 model={modelValue}
                 thinkingLevel={thinkingLevel}

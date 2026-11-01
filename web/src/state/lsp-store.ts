@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { comparablePath, isPathWithin } from "@/api/paths";
 import type { LspDiagnostic } from "@/api/lsp";
 
@@ -167,17 +167,23 @@ export function useLspDiagnostics(root: string | null, path: string | null): Lsp
   );
 }
 
-export function useAllDiagnostics(roots: readonly string[]): LspDocumentState[] {
-  const subscribe = (listener: () => void) => subscribeLspStore(listener);
-  const currentRevision = useSyncExternalStore(subscribe, getLspRevision, () => 0);
+const EMPTY_DIAGNOSTICS: LspDocumentState[] = [];
+
+export function useAllDiagnostics(roots: readonly string[], enabled = true): LspDocumentState[] {
+  const subscribe = useCallback(
+    (listener: () => void) => (enabled ? subscribeLspStore(listener) : () => {}),
+    [enabled],
+  );
+  const getSnapshot = useCallback(() => (enabled ? getLspRevision() : 0), [enabled]);
+  const currentRevision = useSyncExternalStore(subscribe, getSnapshot, () => 0);
   const rootsKey = roots.join("\n");
   return useMemo(() => {
-    if (roots.length === 0) return [];
+    if (!enabled || roots.length === 0) return EMPTY_DIAGNOSTICS;
     const all = [...documents.values()].filter((document) =>
       roots.some((root) => isPathWithin(document.path, root)),
     );
     return all.sort((left, right) => left.path.localeCompare(right.path));
     // `currentRevision` is the change signal; `rootsKey` captures the root set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentRevision, rootsKey]);
+  }, [enabled, currentRevision, rootsKey]);
 }

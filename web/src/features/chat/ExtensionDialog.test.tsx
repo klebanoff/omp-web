@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ExtensionRequest } from "@/state/extension-store";
 import { ExtensionDialog } from "./ExtensionDialog";
+import { testExtensionDialogClasses } from "./test-classes";
 
 afterEach(cleanup);
 
@@ -16,20 +17,20 @@ describe("ExtensionDialog", () => {
   it("confirms and cancels a confirm request", () => {
     const onRespond = vi.fn();
     const { rerender } = render(
-      <ExtensionDialog request={confirmRequest} onRespond={onRespond} />,
+      <ExtensionDialog classes={testExtensionDialogClasses} request={confirmRequest} onRespond={onRespond} />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onRespond).toHaveBeenCalledWith({ confirmed: true });
 
-    rerender(<ExtensionDialog request={{ ...confirmRequest, id: "confirm-2" }} onRespond={onRespond} />);
+    rerender(<ExtensionDialog classes={testExtensionDialogClasses} request={{ ...confirmRequest, id: "confirm-2" }} onRespond={onRespond} />);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onRespond).toHaveBeenLastCalledWith({ cancelled: true });
   });
 
   it("cancels on Escape", () => {
     const onRespond = vi.fn();
-    render(<ExtensionDialog request={confirmRequest} onRespond={onRespond} />);
+    render(<ExtensionDialog classes={testExtensionDialogClasses} request={confirmRequest} onRespond={onRespond} />);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onRespond).toHaveBeenCalledWith({ cancelled: true });
   });
@@ -42,7 +43,7 @@ describe("ExtensionDialog", () => {
       title: "Session name",
       placeholder: "Name",
     };
-    render(<ExtensionDialog request={request} onRespond={onRespond} />);
+    render(<ExtensionDialog classes={testExtensionDialogClasses} request={request} onRespond={onRespond} />);
 
     const field = screen.getByRole("textbox", { name: "Response" });
     fireEvent.change(field, { target: { value: "alpha" } });
@@ -59,7 +60,7 @@ describe("ExtensionDialog", () => {
       prefill: "original",
       promptStyle: true,
     };
-    render(<ExtensionDialog request={request} onRespond={onRespond} />);
+    render(<ExtensionDialog classes={testExtensionDialogClasses} request={request} onRespond={onRespond} />);
 
     const field = screen.getByRole("textbox", { name: "Response" }) as HTMLTextAreaElement;
     expect(field.value).toBe("original");
@@ -76,7 +77,7 @@ describe("ExtensionDialog", () => {
       title: "Choose mode",
       options: ["fast", "safe"],
     };
-    render(<ExtensionDialog request={request} onRespond={onRespond} />);
+    render(<ExtensionDialog classes={testExtensionDialogClasses} request={request} onRespond={onRespond} />);
 
     const submit = screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
@@ -102,7 +103,7 @@ describe("ExtensionDialog", () => {
         },
       ],
     };
-    render(<ExtensionDialog request={request} onRespond={onRespond} />);
+    render(<ExtensionDialog classes={testExtensionDialogClasses} request={request} onRespond={onRespond} />);
 
     const submit = screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
     expect(submit.disabled).toBe(true);
@@ -132,7 +133,7 @@ describe("ExtensionDialog", () => {
         },
       ],
     };
-    const { rerender } = render(<ExtensionDialog request={request} onRespond={onRespond} />);
+    const { rerender } = render(<ExtensionDialog classes={testExtensionDialogClasses} request={request} onRespond={onRespond} />);
 
     const submit = screen.getByRole("button", { name: "Submit" }) as HTMLButtonElement;
     expect(submit.disabled).toBe(false);
@@ -143,7 +144,7 @@ describe("ExtensionDialog", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: "docs" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "tests" }));
-    rerender(<ExtensionDialog request={{ ...request, id: "ask-3" }} onRespond={onRespond} />);
+    rerender(<ExtensionDialog classes={testExtensionDialogClasses} request={{ ...request, id: "ask-3" }} onRespond={onRespond} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "docs" }));
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
     expect(onRespond).toHaveBeenLastCalledWith({
@@ -165,7 +166,7 @@ describe("ExtensionDialog", () => {
         },
       ],
     };
-    render(<ExtensionDialog request={request} onRespond={onRespond} />);
+    render(<ExtensionDialog classes={testExtensionDialogClasses} request={request} onRespond={onRespond} />);
 
     fireEvent.click(screen.getByRole("radio", { name: "speed" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Other answer for Why?" }), {
@@ -182,7 +183,7 @@ describe("ExtensionDialog", () => {
   it("renders errors and disables actions while busy", () => {
     const onRespond = vi.fn();
     render(
-      <ExtensionDialog
+      <ExtensionDialog classes={testExtensionDialogClasses}
         request={confirmRequest}
         busy
         error="Response failed"
@@ -207,12 +208,12 @@ describe("ExtensionDialog", () => {
       method: "input",
       title: "First",
     };
-    const { rerender } = render(<ExtensionDialog request={request} onRespond={vi.fn()} />);
+    const { rerender } = render(<ExtensionDialog classes={testExtensionDialogClasses} request={request} onRespond={vi.fn()} />);
     const field = screen.getByRole("textbox", { name: "Response" }) as HTMLInputElement;
     fireEvent.change(field, { target: { value: "stale" } });
     expect(field.value).toBe("stale");
 
-    rerender(<ExtensionDialog request={{ ...request, id: "input-b", title: "Second" }} onRespond={vi.fn()} />);
+    rerender(<ExtensionDialog classes={testExtensionDialogClasses} request={{ ...request, id: "input-b", title: "Second" }} onRespond={vi.fn()} />);
     expect((screen.getByRole("textbox", { name: "Response" }) as HTMLInputElement).value).toBe("");
   });
 });

@@ -125,6 +125,30 @@ describe("FileTree actions", () => {
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith("/repo/src", true));
   });
 
+  it("does not list an expanded folder until its row is in view", () => {
+    mocks.useFileList.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: { path: ROOT, entries: [entry("src", true)] },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <FileTree
+          sessionId="session"
+          roots={[ROOT]}
+          expanded={["/repo/src"]}
+          gitFilesByRoot={new Map()}
+          scrollTop={0}
+          onToggle={vi.fn()}
+          onOpen={vi.fn()}
+          onScroll={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    expect(mocks.useFileList.mock.calls.map((call) => call[0])).toEqual([ROOT]);
+  });
+
   it("keeps preview/pin opens and directory toggles", () => {
     const { onToggle, onOpen } = renderTree({ entries: [entry("src", true), entry("a.ts")] });
 

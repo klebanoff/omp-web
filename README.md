@@ -69,7 +69,7 @@ bun run typecheck   # tsc --noEmit
 bun run contract    # regenerate contract/open-api.yaml from route contracts
 bun run contract:check
 
-bun run dev         # API under --watch + Vite in one process
+bun run dev         # API under --hot + Vite in one process
 bun run dev:api     # API only, for a separately started Vite
 bun run web:dev     # Vite UI on http://127.0.0.1:5173 (proxies /api)
 bun run web:schema  # regenerate web/src/api/schema.d.ts from the contract

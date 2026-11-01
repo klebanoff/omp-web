@@ -1,10 +1,10 @@
 import {
-  createContext,
-  useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -61,8 +61,6 @@ export interface NotificationCenterValue {
   clearHistory(): Promise<void>;
   selectSession(sessionId: string): void;
 }
-
-const NotificationCenterContext = createContext<NotificationCenterValue | null>(null);
 
 const NOTIFICATION_HISTORY_QUERY_KEY = ["notification-history"] as const;
 const PREFS_STORAGE_KEY = "omp.notifications.prefs.v1";
@@ -183,12 +181,101 @@ interface NotificationProviderProps {
   children: ReactNode;
 }
 
+interface NotificationCenterData {
+  clientId: string;
+  deviceId: string;
+  prefs: NotificationPrefs;
+  history: NotificationHistoryEntry[];
+  unreadCount: number;
+  loading: boolean;
+  error: string | null;
+  busy: boolean;
+  pushStatus: PushStatus;
+}
+
+const EMPTY_CENTER: NotificationCenterData = {
+  clientId: notificationClientId,
+  deviceId: "",
+  prefs: parseNotificationPrefs(null),
+  history: EMPTY_HISTORY,
+  unreadCount: 0,
+  loading: true,
+  error: null,
+  busy: false,
+  pushStatus: "default",
+};
+
+let centerSnapshot: NotificationCenterData = EMPTY_CENTER;
+const centerListeners = new Set<() => void>();
+
+function subscribeCenter(listener: () => void): () => void {
+  centerListeners.add(listener);
+  return () => centerListeners.delete(listener);
+}
+
+function publishCenter(next: NotificationCenterData): void {
+  const current = centerSnapshot;
+  if (
+    current.clientId === next.clientId
+    && current.deviceId === next.deviceId
+    && current.prefs === next.prefs
+    && current.history === next.history
+    && current.unreadCount === next.unreadCount
+    && current.loading === next.loading
+    && current.error === next.error
+    && current.busy === next.busy
+    && current.pushStatus === next.pushStatus
+  ) return;
+  centerSnapshot = next;
+  for (const listener of centerListeners) listener();
+}
+
+interface ToastSnapshot {
+  toasts: readonly ToastEntry[];
+  locale: string;
+}
+
+const EMPTY_TOASTS: ToastSnapshot = { toasts: [], locale: "en" };
+let toastSnapshot: ToastSnapshot = EMPTY_TOASTS;
+const toastListeners = new Set<() => void>();
+
+function subscribeToasts(listener: () => void): () => void {
+  toastListeners.add(listener);
+  return () => toastListeners.delete(listener);
+}
+
+function publishToasts(next: ToastSnapshot): void {
+  if (next.toasts === toastSnapshot.toasts && next.locale === toastSnapshot.locale) return;
+  toastSnapshot = next;
+  for (const listener of toastListeners) listener();
+}
+
+const centerBindings: Omit<NotificationCenterValue, keyof NotificationCenterData> = {
+  setPrefs: () => {},
+  enableNotifications: async () => {},
+  disableNotifications: async () => {},
+  sendTest: async () => {},
+  markAllRead: async () => {},
+  markRead: async () => {},
+  removeEntry: async () => {},
+  clearHistory: async () => {},
+  selectSession: () => {},
+};
+
+const toastBindings: {
+  dismiss: (id: string) => void;
+  open: (event: NotificationEvent) => void;
+} = {
+  dismiss: () => {},
+  open: () => {},
+};
+
 /**
  * Owns this tab's notification identity, presence, history and push
  * subscription. The SSE stream only reports what to show; the server decides
  * who receives a notification from presence reports.
  */
-export function NotificationProvider({ sessionId, onSelectSession, children }: NotificationProviderProps) {
+function NotificationRuntime({ sessionId, onSelectSession }: Omit<NotificationProviderProps, "children">) {
   const queryClient = useQueryClient();
   const [deviceId] = useState(() => readOrCreateId(DEVICE_ID_STORAGE_KEY));
   const clientId = notificationClientId;
@@ -540,7 +627,7 @@ export function NotificationProvider({ sessionId, onSelectSession, children }: N
     selectSessionRef.current(id);
   };
 
-  const value: NotificationCenterValue = {
+  const centerData: NotificationCenterData = {
     clientId,
     deviceId,
     prefs,
@@ -550,34 +637,57 @@ export function NotificationProvider({ sessionId, onSelectSession, children }: N
     error: actionError ?? (historyQuery.error ? errorMessage(historyQuery.error) : null),
     busy,
     pushStatus,
-    setPrefs,
-    enableNotifications,
-    disableNotifications,
-    sendTest,
-    markAllRead,
-    markRead,
-    removeEntry,
-    clearHistory,
-    selectSession,
   };
+  centerBindings.setPrefs = setPrefs;
+  centerBindings.enableNotifications = enableNotifications;
+  centerBindings.disableNotifications = disableNotifications;
+  centerBindings.sendTest = sendTest;
+  centerBindings.markAllRead = markAllRead;
+  centerBindings.markRead = markRead;
+  centerBindings.removeEntry = removeEntry;
+  centerBindings.clearHistory = clearHistory;
+  centerBindings.selectSession = selectSession;
+  toastBindings.dismiss = dismissToast;
+  toastBindings.open = openNotification;
 
+  useLayoutEffect(() => {
+    publishCenter(centerData);
+    publishToasts({ toasts, locale: prefs.locale });
+  });
+
+  return null;
+}
+
+function NotificationToastHost() {
+  const snapshot = useSyncExternalStore(subscribeToasts, () => toastSnapshot, () => EMPTY_TOASTS);
+  if (snapshot.toasts.length === 0) return null;
   return (
-    <NotificationCenterContext.Provider value={value}>
-      <ToastQueueProvider
-        toasts={toasts}
-        locale={prefs.locale}
-        onDismiss={dismissToast}
-        onOpen={openNotification}
-      >
-        {children}
-        <NotificationToasts />
-      </ToastQueueProvider>
-    </NotificationCenterContext.Provider>
+    <ToastQueueProvider
+      toasts={snapshot.toasts}
+      locale={snapshot.locale}
+      onDismiss={(id) => toastBindings.dismiss(id)}
+      onOpen={(event) => toastBindings.open(event)}
+    >
+      <NotificationToasts />
+    </ToastQueueProvider>
+  );
+}
+
+/**
+ * The runtime and the toast host subscribe on their own. A toast or a history
+ * refresh does not re-render the shell wrapped here.
+ */
+export function NotificationProvider({ sessionId, onSelectSession, children }: NotificationProviderProps) {
+  return (
+    <>
+      <NotificationRuntime sessionId={sessionId} onSelectSession={onSelectSession} />
+      {children}
+      <NotificationToastHost />
+    </>
   );
 }
 
 export function useNotificationCenter(): NotificationCenterValue {
-  const value = useContext(NotificationCenterContext);
-  if (!value) throw new Error("useNotificationCenter must be used inside NotificationProvider");
-  return value;
+  const data = useSyncExternalStore(subscribeCenter, () => centerSnapshot, () => EMPTY_CENTER);
+  return useMemo(() => ({ ...data, ...centerBindings }), [data]);
 }

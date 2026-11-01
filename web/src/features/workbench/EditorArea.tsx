@@ -1,5 +1,7 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { scheduleIdle } from "@/state/schedule-idle";
 import { rootForPath } from "@/api/paths";
+import type { WorkbenchTab } from "@/layout/layout-store";
 import type { EditorSlotProps } from "@/slots/editor";
 import { DiffView } from "./DiffView";
 import { FileView } from "./FileView";
@@ -8,6 +10,32 @@ import styles from "./editor-area.module.css";
 // Static import would pull xterm into the initial bundle; the shell loads the
 // terminal chunk only when a terminal tab is open.
 const TerminalView = lazy(() => import("./TerminalView").then((module) => ({ default: module.TerminalView })));
+
+/** Keep a terminal mounted after its first view so switching tabs does not drop the xterm buffer. */
+export function retainTerminals(
+  seen: readonly string[],
+  tabs: readonly WorkbenchTab[],
+  activeTabId: string | null,
+): string[] {
+  const live = new Set<string>();
+  for (const tab of tabs) {
+    if (tab.kind === "terminal") live.add(tab.id);
+  }
+  const next: string[] = [];
+  for (const id of seen) {
+    if (live.has(id)) next.push(id);
+  }
+  if (activeTabId !== null && live.has(activeTabId) && !next.includes(activeTabId)) next.push(activeTabId);
+  return next;
+}
+
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
 
 export function EditorArea({
   sessionId,
@@ -20,6 +48,12 @@ export function EditorArea({
 }: EditorSlotProps) {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const terminalTabs = tabs.filter((tab) => tab.kind === "terminal");
+  const [seen, setSeen] = useState<string[]>([]);
+  const [widgetsReady, setWidgetsReady] = useState(false);
+  useEffect(() => scheduleIdle(() => setWidgetsReady(true)), []);
+  const mountedIds = retainTerminals(seen, tabs, widgetsReady ? activeTabId : null);
+  if (!sameIds(seen, mountedIds)) setSeen(mountedIds);
+  const mounted = new Set(mountedIds);
 
   const renderActive = () => {
     if (!activeTab) return null;
@@ -43,13 +77,18 @@ export function EditorArea({
 
   return (
     <div className={styles.body}>
-      {activeTab && activeTab.kind !== "terminal" ? renderActive() : null}
+      {widgetsReady && activeTab && activeTab.kind !== "terminal" ? renderActive() : null}
+      {!widgetsReady && activeTab && activeTab.kind !== "terminal" ? (
+        <div className={styles.status}>Loading editor…</div>
+      ) : null}
       {terminalTabs.map((tab) => {
+        if (!mounted.has(tab.id)) return null;
         const visible = tab.id === activeTabId;
         return (
           <div
             key={tab.id}
             className={styles.terminalArea}
+            data-terminal-id={tab.id}
             style={{ display: visible ? "flex" : "none" }}
           >
             <Suspense fallback={<div className={styles.status}>Loading terminal…</div>}>

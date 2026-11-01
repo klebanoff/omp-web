@@ -36,7 +36,6 @@ describe("rail new session entry point", () => {
     const onNewSession = vi.fn();
     renderRail(onNewSession);
 
-    expect(screen.queryByRole("button", { name: "New session" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "New session in Games" }));
 
     expect(onNewSession).toHaveBeenCalledWith("/projects/games");

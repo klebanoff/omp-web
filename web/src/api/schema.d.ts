@@ -1688,6 +1688,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    before?: string;
                     boundary?: "1";
                     cursor?: string;
                     deferMedia?: string;
@@ -1696,6 +1697,7 @@ export interface paths {
                     leafId?: string;
                     limit?: string;
                     sync?: "1";
+                    tail?: "1";
                 };
                 header?: never;
                 path: {
@@ -1731,10 +1733,11 @@ export interface paths {
                             leafId?: string | null;
                             snapshot?: unknown | null;
                             /** @enum {string} */
-                            mode?: "append" | "replace";
+                            mode?: "append" | "replace" | "prepend";
                             baseEntryId?: string | null;
                             cursor?: unknown;
                             hasMore?: boolean;
+                            hasOlder?: boolean;
                         } & {
                             [key: string]: unknown;
                         };

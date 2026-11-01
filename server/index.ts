@@ -330,14 +330,23 @@ export interface StartedServer {
   url: URL;
 }
 
-export async function startServer(options: StartServerOptions = {}): Promise<StartedServer> {
+type ServeOptions = NonNullable<Parameters<typeof Bun.serve<TerminalSocketData>>[0]>;
+
+declare global {
+  // The `--hot` process keeps this socket and swaps handlers in place.
+  var __ompWebServer: Bun.Server<TerminalSocketData> | undefined;
+}
+
+async function serverOptions(options: StartServerOptions): Promise<{ options: ServeOptions; routes: number }> {
   const host = options.host ?? process.env.OMP_WEB_HOST ?? "127.0.0.1";
   const port = options.port ?? Number(process.env.OMP_WEB_PORT || process.env.PORT || 30178);
   const staticRoot =
     options.staticRoot ?? process.env.OMP_WEB_STATIC_DIR ?? fileURLToPath(new URL("../web/dist", import.meta.url));
   const routes = collectRoutes();
   await preloadRouteModules(routes);
-  const server = Bun.serve<TerminalSocketData>({
+  return {
+    routes: routes.length,
+    options: {
     hostname: host,
     port,
     // Bun closes idle streams after 10 s; /api/events heartbeats every 30 s.
@@ -386,14 +395,29 @@ export async function startServer(options: StartServerOptions = {}): Promise<Sta
         code: "internal_error",
       }, { status: 500 });
     },
-  });
-  return { server, routes: routes.length, url: server.url };
+    },
+  };
+}
+
+export async function startServer(options: StartServerOptions = {}): Promise<StartedServer> {
+  const built = await serverOptions(options);
+  const server = Bun.serve(built.options);
+  return { server, routes: built.routes, url: server.url };
 }
 
 async function main(): Promise<void> {
   try {
-    const { routes, url } = await startServer();
-    console.log(`omp web listening on ${url} (${routes} routes)`);
+    const built = await serverOptions({});
+    const existing = globalThis.__ompWebServer;
+    if (existing) {
+      // A hard restart drops the SSE socket and Vite reports ECONNRESET.
+      existing.reload(built.options);
+      console.log(`omp web reloaded (${built.routes} routes)`);
+      return;
+    }
+    const server = Bun.serve(built.options);
+    globalThis.__ompWebServer = server;
+    console.log(`omp web listening on ${server.url} (${built.routes} routes)`);
   } catch (error) {
     console.error(error);
     process.exit(1);

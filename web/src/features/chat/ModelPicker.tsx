@@ -1,9 +1,10 @@
 import type { ChangeEvent, JSX } from "react";
 import type { ModelEntry } from "@/api/agent";
 import { ChevronDownIcon, ModelIcon, ThinkingIcon } from "./icons";
-import styles from "./model-picker.module.css";
+import type { ModelPickerClasses } from "./classes";
 
 export interface ModelPickerProps {
+  classes: ModelPickerClasses;
   models: ModelEntry[];
   model: { provider: string; modelId: string } | null;
   thinkingLevel: string;
@@ -70,6 +71,7 @@ function thinkingOptions(thinkingLevels: string[], current: string, allowAuto: b
 }
 
 export function ModelPicker({
+  classes,
   models,
   model,
   thinkingLevel,
@@ -99,13 +101,13 @@ export function ModelPicker({
   };
 
   return (
-    <div className={styles.picker}>
-      <label className={styles.pill} title="Model">
-        <span className={styles.pillIcon}>
+    <div className={classes.picker}>
+      <label className={classes.pill} title="Model">
+        <span className={classes.pillIcon}>
           <ModelIcon size={13} />
         </span>
         <select
-          className={`${styles.select} ${styles.modelSelect}`}
+          className={`${classes.select} ${classes.modelSelect}`}
           value={currentModelValue}
           onChange={handleModelChange}
           disabled={inactive}
@@ -130,16 +132,16 @@ export function ModelPicker({
             </optgroup>
           ))}
         </select>
-        <span className={styles.chevron}>
+        <span className={classes.chevron}>
           <ChevronDownIcon size={12} />
         </span>
       </label>
-      <label className={styles.pill} title="Thinking level">
-        <span className={styles.pillIcon}>
+      <label className={classes.pill} title="Thinking level">
+        <span className={classes.pillIcon}>
           <ThinkingIcon size={13} />
         </span>
         <select
-          className={`${styles.select} ${styles.thinkingSelect}`}
+          className={`${classes.select} ${classes.thinkingSelect}`}
           value={thinkingLevel}
           onChange={(event) => onChangeThinking(event.target.value)}
           disabled={inactive}
@@ -151,7 +153,7 @@ export function ModelPicker({
             </option>
           ))}
         </select>
-        <span className={styles.chevron}>
+        <span className={classes.chevron}>
           <ChevronDownIcon size={12} />
         </span>
       </label>

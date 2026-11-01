@@ -16,7 +16,7 @@ export interface SessionState {
   messages?: ChatMessage[];
   entryIds?: string[];
   optimistic?: ChatMessage | null;
-  stream: { active: boolean; message: ChatMessage | null; held: boolean };
+  stream: { active: boolean; message: ChatMessage | null; held: ChatMessage[] };
   queue: { steering: string[]; followUp: string[] };
   notices: Array<{ id: string; type: string; message: string; at: number }>;
   toolResults?: Record<string, unknown>;

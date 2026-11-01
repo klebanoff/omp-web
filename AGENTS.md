@@ -53,6 +53,24 @@ day-to-day repository rules.
   or response shapes that the contract already describes.
 - One external snapshot store per session (`useSyncExternalStore`); TanStack
   Query is only the HTTP cache. No Redux and no domain logic in the client.
+- Logic and display stay apart. `web/src/features/` and `web/src/state/` own
+  stores, queries, and intents. `web/src/slots/` is the props contract a panel
+  may receive. `web/src/skins/` is a theme: it renders slot props and does not
+  fetch, subscribe, or decide session rules. A new theme is another component
+  registered in `web/src/skins/registry.ts` against the same slots.
+- Isolate a subscription in the leaf that paints it. A high-frequency store
+  (composer draft, theme, a width while dragging) must not live in the
+  component that also renders a large tree, or every update redraws that tree.
+  The composer draft is read in `ComposerDock`, not in `ChatSkin`.
+- Do not subscribe the shell root to a high-frequency store. The session
+  snapshot, the session list, git status, diagnostics, and a pane width each
+  live in the column that paints them.
+- Do not request data outside the visible window. A history page, a directory
+  listing, and rows inside a loaded directory wait until that window is on
+  screen. Older history arrives when the transcript is scrolled up.
+- Warm a heavy widget's chunk in idle time after the first frame, and do not
+  mount it in that frame. Monaco, xterm, and markdown for the loaded history
+  window are prefetched once the chat has painted.
 - One multiplexed SSE connection (`/api/agent/events`); reconnect means
   re-subscribe and render the first snapshot.
 - Explorer and git panels are our own components over `/api/workspace/*`.

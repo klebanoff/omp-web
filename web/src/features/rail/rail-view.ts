@@ -1,0 +1,220 @@
+/**
+ * Pure derivation for a session rail: project grouping, recency order, search
+ * matching, the running filter, and relative time labels. No React and no
+ * skin imports, so any rail presentation can consume the same view.
+ */
+
+import { basename, comparablePath } from "@/api/paths";
+import type { ProjectSummary, SessionSummary } from "@/api/workspace";
+
+export interface RailSessionItem {
+  id: string;
+  label: string;
+  cwd: string;
+  /** Relative timestamp, e.g. `now`, `12m`, `3h`, `2d`. */
+  time: string;
+  running: boolean;
+  /** Set for the Active section, where the project is the secondary text. */
+  projectLabel?: string;
+}
+
+export interface RailProjectGroup {
+  key: string;
+  path: string;
+  label: string;
+  sessions: RailSessionItem[];
+}
+
+export interface RailViewInput {
+  sessions: readonly SessionSummary[];
+  projects: readonly ProjectSummary[];
+  running: ReadonlySet<string>;
+  query?: string;
+  runningOnly?: boolean;
+  /** Injected clock for stable labels and tests. */
+  now?: number;
+}
+
+export interface RailView {
+  /** Running sessions, newest first, with their project as secondary text. */
+  active: RailSessionItem[];
+  /** Project sections in pin/sort/label order; sessions newest first. */
+  groups: RailProjectGroup[];
+}
+
+interface GroupDraft {
+  key: string;
+  path: string;
+  label: string;
+  pinOrder: number;
+  sortOrder: number;
+  sessions: SessionSummary[];
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/**
+ * Session title exactly as stored, trimmed, emoji included; an empty name
+ * falls back to the id prefix.
+ */
+export function sessionLabel(session: SessionSummary): string {
+  return session.name?.trim() || session.id.slice(0, 8);
+}
+
+/** Last activity in epoch milliseconds; unparseable dates sort last. */
+export function sessionTimestamp(session: SessionSummary): number {
+  const time = Date.parse(session.lastMessageAt ?? session.modified);
+  return Number.isFinite(time) ? time : 0;
+}
+
+/** Short relative label; floors, so `59s` is `now` and `61s` is `1m`. */
+export function relativeTimeLabel(
+  value: string | number | Date | null | undefined,
+  now = Date.now(),
+): string {
+  if (value === null || value === undefined || value === "") return "";
+  const time = value instanceof Date
+    ? value.getTime()
+    : typeof value === "number"
+      ? value
+      : Date.parse(value);
+  if (!Number.isFinite(time)) return "";
+
+  const elapsed = now - time;
+  if (elapsed < MINUTE) return "now";
+  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)}m`;
+  if (elapsed < DAY) return `${Math.floor(elapsed / HOUR)}h`;
+
+  const days = Math.floor(elapsed / DAY);
+  if (days < 7) return `${days}d`;
+  if (days < 30) return `${Math.floor(days / 7)}w`;
+  if (days < 365) return `${Math.floor(days / 30)}mo`;
+  return `${Math.floor(days / 365)}y`;
+}
+
+/** Lowercased, trimmed needle shared by `matchesSession` and group matching. */
+export function normalizeQuery(query: string | undefined): string {
+  return (query ?? "").trim().toLowerCase();
+}
+
+/** Matches a session title or its working directory against a normalized needle. */
+export function matchesSession(session: SessionSummary, needle: string): boolean {
+  if (!needle) return true;
+  return (
+    sessionLabel(session).toLowerCase().includes(needle) ||
+    session.cwd.toLowerCase().includes(needle)
+  );
+}
+
+/** Newest first, with the id as a deterministic tie-break. */
+export function compareSessions(left: SessionSummary, right: SessionSummary): number {
+  const delta = sessionTimestamp(right) - sessionTimestamp(left);
+  return delta !== 0 ? delta : left.id.localeCompare(right.id);
+}
+
+function compareGroups(left: GroupDraft, right: GroupDraft): number {
+  if (left.pinOrder !== right.pinOrder) return left.pinOrder - right.pinOrder;
+  if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+  const byLabel = left.label.localeCompare(right.label);
+  return byLabel !== 0 ? byLabel : left.key.localeCompare(right.key);
+}
+
+function toItem(
+  session: SessionSummary,
+  now: number,
+  running: ReadonlySet<string>,
+  projectLabel?: string,
+): RailSessionItem {
+  const item: RailSessionItem = {
+    id: session.id,
+    label: sessionLabel(session),
+    cwd: session.cwd,
+    time: relativeTimeLabel(session.lastMessageAt ?? session.modified, now),
+    running: running.has(session.id),
+  };
+  if (projectLabel) item.projectLabel = projectLabel;
+  return item;
+}
+
+/**
+ * Builds everything a rail renders. Sessions in the Active section are removed
+ * from project groups so a running session appears exactly once; a group also
+ * matches the query by its own label or path.
+ */
+export function buildRailView(input: RailViewInput): RailView {
+  const now = input.now ?? Date.now();
+  const needle = normalizeQuery(input.query);
+  const runningOnly = input.runningOnly === true;
+  const drafts = new Map<string, GroupDraft>();
+
+  for (const project of input.projects) {
+    const key = comparablePath(project.path);
+    drafts.set(key, {
+      key,
+      path: project.path,
+      label: project.alias?.trim() || basename(project.path),
+      pinOrder: project.pinOrder ?? Number.POSITIVE_INFINITY,
+      sortOrder: project.sortOrder ?? Number.POSITIVE_INFINITY,
+      sessions: [],
+    });
+  }
+
+  for (const session of input.sessions) {
+    const root = session.projectRoot ?? session.cwd;
+    const key = comparablePath(root);
+    let group = drafts.get(key);
+    if (!group) {
+      group = {
+        key,
+        path: root,
+        label: basename(root),
+        pinOrder: Number.POSITIVE_INFINITY,
+        sortOrder: Number.POSITIVE_INFINITY,
+        sessions: [],
+      };
+      drafts.set(key, group);
+    }
+    group.sessions.push(session);
+  }
+
+  const ordered = [...drafts.values()].sort(compareGroups);
+  const projectLabels = new Map<string, string>();
+  for (const group of ordered) {
+    group.sessions.sort(compareSessions);
+    for (const session of group.sessions) projectLabels.set(session.id, group.label);
+  }
+
+  const activeSessions = input.sessions
+    .filter((session) => input.running.has(session.id) && matchesSession(session, needle))
+    .sort(compareSessions);
+  const activeIds = new Set(activeSessions.map((session) => session.id));
+  const active = activeSessions.map((session) =>
+    toItem(session, now, input.running, projectLabels.get(session.id)),
+  );
+
+  const groups: RailProjectGroup[] = [];
+  for (const group of ordered) {
+    const sessions = group.sessions
+      .filter((session) => !activeIds.has(session.id))
+      .filter((session) => matchesSession(session, needle))
+      .filter((session) => !runningOnly || input.running.has(session.id))
+      .map((session) => toItem(session, now, input.running));
+
+    if (runningOnly && sessions.length === 0) continue;
+    if (needle && sessions.length === 0) {
+      const haystack = `${group.label}\n${group.path}`.toLowerCase();
+      if (!haystack.includes(needle)) continue;
+    }
+
+    groups.push({
+      key: group.key,
+      path: group.path,
+      label: group.label,
+      sessions,
+    });
+  }
+
+  return { active, groups };
+}

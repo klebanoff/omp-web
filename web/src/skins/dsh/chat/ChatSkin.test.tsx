@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessage, SessionSnapshot } from "@/api/session-types";
 import { writeDragPayload, type DragPayload } from "@/drag/payload";
 import type { ChatSlotProps } from "@/slots/chat";
 import { resetComposerStoreForTests } from "@/state/composer-store";
@@ -21,7 +22,6 @@ function props(onDropPayload: (payload: DragPayload) => void): ChatSlotProps {
     session: null,
     selected: "s1",
     snapshot: null,
-    context: undefined,
     streamError: null,
     extensionRequest: null,
     extensionBusy: false,
@@ -43,6 +43,32 @@ function props(onDropPayload: (payload: DragPayload) => void): ChatSlotProps {
     onRemoveQueued: vi.fn(),
     onPromoteQueued: vi.fn(),
     onDropPayload,
+    historyMessages: [],
+    historyEntryIds: [],
+    hasOlderHistory: false,
+    historyOlderEpoch: 0,
+    onLoadOlderHistory: vi.fn(),
+  };
+}
+
+function snapshot(messages: ChatMessage[], streamMessage: ChatMessage | null = null): SessionSnapshot {
+  return {
+    branching: null,
+    draft: { value: "", images: [], files: [] },
+    session: {
+      sessionId: "s1",
+      connection: "open",
+      streamId: "stream",
+      sequence: 1,
+      run: { status: streamMessage ? "running" : "idle", error: null },
+      messages,
+      entryIds: messages.map((_, index) => `e${index}`),
+      stream: { active: streamMessage !== null, message: streamMessage, held: [] },
+      queue: { steering: [], followUp: [] },
+      notices: [],
+      historyRevision: 1,
+      lastError: null,
+    },
   };
 }
 
@@ -73,5 +99,74 @@ describe("chat skin drop target", () => {
     dataTransfer.setData("text/plain", "not a payload");
     fireEvent.drop(composer as Element, { dataTransfer });
     expect(onDropPayload).not.toHaveBeenCalled();
+  });
+});
+
+describe("chat skin composer", () => {
+  it("keeps typed text in the composer", () => {
+    const { container } = render(<ChatSkin {...props(vi.fn())} />);
+    const textarea = container.querySelector("textarea");
+    expect(textarea).toBeTruthy();
+    fireEvent.change(textarea as HTMLTextAreaElement, { target: { value: "hello from the dock" } });
+    expect((textarea as HTMLTextAreaElement).value).toBe("hello from the dock");
+  });
+});
+
+describe("chat skin live turn", () => {
+  it("shows a waiting line while the agent has not produced a visible block", () => {
+    render(<ChatSkin {...props(vi.fn())} running />);
+    expect(screen.getByRole("status").textContent).toContain("Waiting for the agent");
+  });
+
+  it("hides the waiting line once streaming thinking is on screen", () => {
+    render(
+      <ChatSkin
+        {...props(vi.fn())}
+        running
+        snapshot={snapshot([], { role: "assistant", content: [{ type: "thinking", thinking: "planning the edit" }] })}
+      />,
+    );
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText("planning the edit")).toBeTruthy();
+    expect(document.querySelector("details")?.hasAttribute("open")).toBe(true);
+  });
+});
+
+describe("chat skin transcript shells", () => {
+  it("defers markdown for rows above the tail", () => {
+    const Original = globalThis.IntersectionObserver;
+    class SilentObserver {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    }
+    globalThis.IntersectionObserver = SilentObserver as unknown as typeof IntersectionObserver;
+
+    try {
+      const messages: ChatMessage[] = Array.from({ length: 30 }, (_, index) =>
+        index === 0
+          ? { role: "assistant", content: "**older** row" }
+          : { role: "user", content: `message ${index}` },
+      );
+      const { container } = render(
+        <ChatSkin
+          {...props(vi.fn())}
+          snapshot={snapshot(messages)}
+          historyMessages={messages}
+          historyEntryIds={messages.map((_, index) => `e${index}`)}
+        />,
+      );
+
+      expect(container.querySelectorAll("[data-deferred='true']").length).toBe(18);
+      expect(container.querySelector("strong")).toBeNull();
+      expect(screen.getByText("**older** row")).toBeTruthy();
+      expect(screen.getByText("message 29")).toBeTruthy();
+    } finally {
+      globalThis.IntersectionObserver = Original;
+    }
   });
 });

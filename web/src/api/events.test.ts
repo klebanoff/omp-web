@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createSseParser, type SseFrame } from "./events";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSseParser, EventStreamClient, type SseFrame } from "./events";
 
 describe("createSseParser", () => {
   it("parses frames split across chunks", () => {
@@ -26,5 +26,41 @@ describe("createSseParser", () => {
     const parse = createSseParser((frame) => frames.push(frame));
     parse("data: orphan\n\n");
     expect(frames).toEqual([]);
+  });
+});
+
+describe("EventStreamClient", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens a new socket when the server no longer knows the connection", async () => {
+    let gets = 0;
+    let posts = 0;
+    vi.stubGlobal("fetch", (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posts += 1;
+        const status = posts === 1 ? 404 : 200;
+        return Promise.resolve(new Response(JSON.stringify({ ok: status === 200 }), { status }));
+      }
+      gets += 1;
+      const connectionId = gets === 1 ? "stale" : "live";
+      const body = `event: mux\ndata: ${JSON.stringify({ type: "hello", connectionId })}\n\n`;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(body));
+          init?.signal?.addEventListener("abort", () => {
+            controller.error(new DOMException("aborted", "AbortError"));
+          }, { once: true });
+        },
+      });
+      return Promise.resolve(new Response(stream, { status: 200 }));
+    });
+
+    const client = new EventStreamClient();
+    await client.subscribe({ kind: "running" }, () => {});
+    expect(gets).toBeGreaterThanOrEqual(2);
+    expect(posts).toBeGreaterThanOrEqual(2);
+    client.close();
   });
 });

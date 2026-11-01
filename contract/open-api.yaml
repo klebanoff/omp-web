@@ -1821,6 +1821,11 @@ paths:
           required: true
           schema:
             type: string
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: string
         - name: boundary
           in: query
           required: false
@@ -1859,6 +1864,13 @@ paths:
           schema:
             type: string
         - name: sync
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - "1"
+        - name: tail
           in: query
           required: false
           schema:
@@ -1927,12 +1939,15 @@ paths:
                     enum:
                       - append
                       - replace
+                      - prepend
                   baseEntryId:
                     type:
                       - string
                       - "null"
                   cursor: {}
                   hasMore:
+                    type: boolean
+                  hasOlder:
                     type: boolean
                 additionalProperties: {}
         "400":

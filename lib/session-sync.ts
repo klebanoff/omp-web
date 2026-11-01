@@ -4,13 +4,22 @@ import {
   paginateContext,
   parseHistoryCursor,
   selectHistoryRange,
+  selectOlderRange,
+  selectTailRange,
   type HistoryCursor,
   type HistoryRange,
 } from "../core/history.ts";
 import type { Snapshot } from "../core/machine";
 import type { SessionContext } from "./types";
 
-export { MAX_SYNC_MESSAGES, historyCursor, parseHistoryCursor, selectHistoryRange };
+export {
+  MAX_SYNC_MESSAGES,
+  historyCursor,
+  parseHistoryCursor,
+  selectHistoryRange,
+  selectOlderRange,
+  selectTailRange,
+};
 
 /** Durable display-history position, scoped to one session and selected view. */
 export type SessionHistoryCursor = HistoryCursor;
@@ -24,11 +33,12 @@ export interface SessionStreamCursor {
 }
 
 export interface SessionHistoryPage {
-  mode: "append" | "replace";
+  mode: "append" | "replace" | "prepend";
   baseEntryId: string | null;
   context: SessionContext;
   cursor: SessionHistoryCursor;
   hasMore: boolean;
+  hasOlder: boolean;
 }
 
 export interface SessionSyncResponse extends SessionHistoryPage {

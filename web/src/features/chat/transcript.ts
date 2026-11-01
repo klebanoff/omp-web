@@ -218,6 +218,53 @@ export function toolResultImages(content: unknown): string[] {
   return images;
 }
 
+const PREVIEW_LIMIT = 160;
+
+function firstLine(text: string): string {
+  const line = text.split("\n").find((part) => part.trim() !== "")?.trim() ?? "";
+  if (line.length <= PREVIEW_LIMIT) return line;
+  return `${line.slice(0, PREVIEW_LIMIT)}…`;
+}
+
+/**
+ * One plain line for a transcript shell. Markdown is left unparsed so a row
+ * that is still off screen does not pay for it.
+ */
+export function messagePreview(message: { content: unknown; command?: unknown; code?: unknown }): string {
+  let fallback = "";
+  for (const block of contentBlocks(message.content)) {
+    if (block.type === "text") {
+      const line = firstLine(block.text);
+      if (line !== "") return line;
+      continue;
+    }
+    if (fallback !== "") continue;
+    if (block.type === "toolCall") fallback = block.toolName || "tool";
+    else if (block.type === "thinking") fallback = "Thinking";
+    else if (block.type === "image") fallback = "Image";
+  }
+  if (fallback !== "") return fallback;
+  if (typeof message.command === "string") {
+    const line = firstLine(message.command);
+    if (line !== "") return line;
+  }
+  if (typeof message.code === "string") {
+    const line = firstLine(message.code);
+    if (line !== "") return line;
+  }
+  return "";
+}
+
+/** True when a live assistant message already shows text, thinking, a tool, or an image. */
+export function hasVisibleLiveBody(message: { content: unknown } | null): boolean {
+  if (!message) return false;
+  for (const block of contentBlocks(message.content)) {
+    if (block.type === "text" && block.text.trim() !== "") return true;
+    if (block.type === "thinking" || block.type === "toolCall" || block.type === "image") return true;
+  }
+  return false;
+}
+
 /** Human-facing label for a message role. */
 export function roleLabel(role: string): string {
   const value = role.trim();

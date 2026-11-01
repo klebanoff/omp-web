@@ -47,22 +47,38 @@ export function readAssistantPayload(value: unknown): Partial<AssistantMessage> 
   return message;
 }
 
-/** A live tool result from a start/update frame, keyed by the call it belongs to. */
+/**
+ * A live tool result, keyed by the call it belongs to.
+ * `partial` stays true for start/update frames. An end frame or a committed
+ * toolResult message passes `false` so the card can leave "running".
+ */
 export function readToolResult(
   value: unknown,
   toolCallId: string | null,
+  partial = true,
 ): ToolResultMessage | null {
   if (!isRecord(value) || !toolCallId) return null;
-  // `tool_execution_*` frames carry the payload under `partialResult`; a
-  // committed result message carries `content` directly.
-  const payload = isRecord(value.partialResult) ? value.partialResult : value;
+  // Updates carry `partialResult`. The end frame carries the final `result`.
+  // A committed toolResult message carries `content` directly.
+  const payload = isRecord(value.result)
+    ? value.result
+    : isRecord(value.partialResult)
+      ? value.partialResult
+      : value;
+  const toolName = typeof value.toolName === "string"
+    ? value.toolName
+    : typeof payload.toolName === "string"
+      ? payload.toolName
+      : undefined;
+  const isError = payload.isError === true || value.isError === true;
   return {
     role: "toolResult",
     toolCallId,
-    ...(typeof value.toolName === "string" ? { toolName: value.toolName } : {}),
+    ...(toolName === undefined ? {} : { toolName }),
     content: Array.isArray(payload.content) ? (payload.content as ToolResultMessage["content"]) : [],
     ...(value.args === undefined ? {} : { args: value.args }),
-    partial: true,
+    partial,
+    ...(isError ? { isError: true } : {}),
     ...(typeof value.timestamp === "number" ? { timestamp: value.timestamp } : {}),
   };
 }

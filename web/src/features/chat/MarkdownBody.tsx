@@ -1,8 +1,8 @@
-import type { JSX } from "react";
+import { useMemo, type JSX } from "react";
 import Markdown, { type Components, type UrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { TranscriptClasses } from "./classes";
 import { joinClassNames } from "./transcript";
-import styles from "./transcript.module.css";
 
 /**
  * Only http(s), mailto, fragments, and relative URLs survive. Anything with
@@ -21,40 +21,44 @@ export function safeMarkdownUrl(url: string): string {
 
 const urlTransform: UrlTransform = (url) => safeMarkdownUrl(url);
 
-const components: Components = {
-  a({ href, title, children }) {
-    return (
-      <a href={href} title={title} target="_blank" rel="noreferrer noopener">
-        {children}
-      </a>
-    );
-  },
-  pre({ children }) {
-    return <pre className={styles.codeBlock}>{children}</pre>;
-  },
-  img({ src, alt, title }) {
-    return (
-      <img
-        className={styles.image}
-        src={src}
-        alt={alt ?? ""}
-        title={title}
-        loading="lazy"
-      />
-    );
-  },
-};
-
 export interface MarkdownBodyProps {
   text: string;
+  classes: TranscriptClasses;
   className?: string | undefined;
 }
 
 /** Markdown renderer used by transcript messages. Raw HTML is never injected. */
-export function MarkdownBody({ text, className }: MarkdownBodyProps): JSX.Element | null {
+export function MarkdownBody({ text, classes, className }: MarkdownBodyProps): JSX.Element | null {
+  const components = useMemo<Components>(
+    () => ({
+      a({ href, title, children }) {
+        return (
+          <a href={href} title={title} target="_blank" rel="noreferrer noopener">
+            {children}
+          </a>
+        );
+      },
+      pre({ children }) {
+        return <pre className={classes.codeBlock}>{children}</pre>;
+      },
+      img({ src, alt, title }) {
+        return (
+          <img
+            className={classes.image}
+            src={src}
+            alt={alt ?? ""}
+            title={title}
+            loading="lazy"
+          />
+        );
+      },
+    }),
+    [classes],
+  );
+
   if (text.trim() === "") return null;
   return (
-    <div className={joinClassNames(styles.markdown, className)}>
+    <div className={joinClassNames(classes.markdown, className)}>
       <Markdown remarkPlugins={[remarkGfm]} urlTransform={urlTransform} components={components}>
         {text}
       </Markdown>

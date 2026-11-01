@@ -62,15 +62,16 @@ const RECONNECT_MAX_MS = 5000;
 export class EventStreamClient {
   readonly #subscriptions = new Map<string, Subscription>();
   readonly #controller = new AbortController();
-  readonly #ready: { promise: Promise<void>; resolve: () => void; reject: (error: unknown) => void };
+  #socket = new AbortController();
+  #ready = openReady();
   #connectionId: string | null = null;
   #nextId = 1;
+  #epoch = 0;
   #started = false;
   #closed = false;
-
-  constructor() {
-    this.#ready = Promise.withResolvers<void>();
-  }
+  /** Skip the reconnect backoff once; a 404 means this socket is already dead. */
+  #immediate = false;
+  #recovering: Promise<void> | null = null;
 
   start(): Promise<void> {
     if (!this.#started) {
@@ -85,7 +86,7 @@ export class EventStreamClient {
     const id = `s${this.#nextId++}`;
     this.#subscriptions.set(id, { channel, handler });
     try {
-      await this.#post({ subscribe: { id, channel } });
+      await this.#postSubscription(id);
     } catch (error) {
       // A 409 means the session has no live wrapper; keep retrying would just
       // repeat the failure on every reconnect. Network failures stay queued.
@@ -101,6 +102,8 @@ export class EventStreamClient {
   close(): void {
     this.#closed = true;
     this.#controller.abort();
+    this.#socket.abort();
+    this.#ready.reject(new DOMException("The event stream was closed", "AbortError"));
     this.#subscriptions.clear();
   }
 
@@ -112,6 +115,10 @@ export class EventStreamClient {
         delay = RECONNECT_MIN_MS;
       } catch {
         if (this.#closed) return;
+        if (this.#immediate) {
+          this.#immediate = false;
+          continue;
+        }
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(RECONNECT_MAX_MS, delay * 2);
       }
@@ -119,8 +126,9 @@ export class EventStreamClient {
   }
 
   async #connect(): Promise<void> {
+    const epoch = this.#epoch;
     const response = await fetch("/api/agent/events", {
-      signal: this.#controller.signal,
+      signal: linkAbort(this.#controller.signal, this.#socket.signal),
       headers: { accept: "text/event-stream" },
     });
     if (!response.ok || !response.body) {
@@ -128,16 +136,19 @@ export class EventStreamClient {
     }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    const parse = createSseParser((frame) => this.#dispatch(frame));
+    const parse = createSseParser((frame) => {
+      if (epoch === this.#epoch) this.#dispatch(frame);
+    });
     try {
       while (true) {
         const { done, value } = await reader.read();
+        if (epoch !== this.#epoch) return;
         if (done) return;
         parse(decoder.decode(value, { stream: true }));
       }
     } finally {
       reader.releaseLock();
-      this.#connectionId = null;
+      if (epoch === this.#epoch) this.#connectionId = null;
     }
   }
 
@@ -168,6 +179,42 @@ export class EventStreamClient {
     }
   }
 
+  async #postSubscription(id: string): Promise<void> {
+    const subscription = this.#subscriptions.get(id);
+    if (!subscription) return;
+    const body = { subscribe: { id, channel: subscription.channel } };
+    try {
+      await this.#post(body);
+    } catch (error) {
+      // 404 is `unknown_connection`: the server restarted or dropped this
+      // socket, and the GET may still look open. Open a new one and retry once.
+      if (!String(error).includes("404") || !this.#subscriptions.has(id)) throw error;
+      await this.#recover();
+      if (!this.#subscriptions.has(id)) return;
+      await this.#post(body);
+    }
+  }
+
+  async #recover(): Promise<void> {
+    if (this.#recovering) return this.#recovering;
+    const pending = (async () => {
+      const previous = this.#socket;
+      this.#epoch += 1;
+      this.#connectionId = null;
+      this.#ready = openReady();
+      this.#socket = new AbortController();
+      this.#immediate = true;
+      previous.abort();
+      await this.#ready.promise;
+    })();
+    this.#recovering = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.#recovering === pending) this.#recovering = null;
+    }
+  }
+
   async #post(body: Record<string, unknown>): Promise<void> {
     const connectionId = this.#connectionId;
     if (!connectionId) throw new Error("Event stream is not connected");
@@ -179,6 +226,26 @@ export class EventStreamClient {
     });
     if (!response.ok) throw new Error(`Event subscription failed: HTTP ${response.status}`);
   }
+}
+
+/** A pending hello. The extra catch keeps close() from surfacing as an unhandled rejection. */
+function openReady(): PromiseWithResolvers<void> {
+  const ready = Promise.withResolvers<void>();
+  ready.promise.catch(() => {});
+  return ready;
+}
+
+/** Abort when either signal aborts. The link itself is not aborted later. */
+function linkAbort(first: AbortSignal, second: AbortSignal): AbortSignal {
+  const linked = new AbortController();
+  const abort = () => linked.abort();
+  if (first.aborted || second.aborted) {
+    linked.abort();
+    return linked.signal;
+  }
+  first.addEventListener("abort", abort, { once: true });
+  second.addEventListener("abort", abort, { once: true });
+  return linked.signal;
 }
 
 function safeParse(text: string): Record<string, unknown> | null {

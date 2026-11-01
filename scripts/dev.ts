@@ -2,15 +2,16 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * UI/UX development: the API under `--watch` and Vite with its `/api` proxy, in
- * one process. Ctrl+C stops both.
+ * UI/UX development: the API under `--hot` and Vite with its `/api` proxy, in
+ * one process. `--hot` keeps the listening socket, so a source save does not
+ * reset `/api/agent/events`. Ctrl+C stops both.
  */
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const inherit = ["inherit", "inherit", "inherit"] as const;
 
 const api = Bun.spawn({
-  cmd: [process.execPath, "--watch", "server/index.ts"],
+  cmd: [process.execPath, "--hot", "server/index.ts"],
   cwd: root,
   stdio: [...inherit],
 });

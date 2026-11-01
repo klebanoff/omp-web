@@ -83,9 +83,16 @@ export class EventStreamConnection {
 
   constructor(signal?: AbortSignal) {
     this.signal = signal;
+    // Bun starts the stream during construction. Mark a dead request first,
+    // or `start` publishes a hello for a connection `close` already dropped.
+    if (signal?.aborted) this.closed = true;
     this.stream = new ReadableStream<Uint8Array>({
       start: (controller) => {
         this.controller = controller;
+        if (this.closed) {
+          try { controller.close(); } catch { /* already closed */ }
+          return;
+        }
         connections().set(this.id, this);
         this.control({ type: "hello", connectionId: this.id });
         this.heartbeat = setInterval(() => {
@@ -98,8 +105,7 @@ export class EventStreamConnection {
       // Half-open disconnects may never fire the abort signal.
       cancel: () => this.close(),
     });
-    signal?.addEventListener("abort", this.close);
-    if (signal?.aborted) this.close();
+    if (!this.closed) signal?.addEventListener("abort", this.close);
   }
 
   readonly close = (): void => {
@@ -350,7 +356,9 @@ async function openSessionChannel(sessionId: string, handle: SubscriptionHandle)
       await authority.refreshHistory();
       const current = authority.snapshot;
       if (current.session.historyRevision !== revision) return;
-      handle.send(snapshotFrame(current, true));
+      // The browser keeps its own history window and asks for the next page.
+      // The machine still holds the full transcript.
+      handle.send(snapshotFrame(current, false));
     }).catch(() => {});
   });
   handle.setDetach(() => {
@@ -366,7 +374,7 @@ async function openSessionChannel(sessionId: string, handle: SubscriptionHandle)
   await authority.refreshHistory();
   const initial = authority.snapshot;
   lastRevision = initial.session.historyRevision;
-  handle.send(snapshotFrame(initial, true));
+  handle.send(snapshotFrame(initial, false));
   return SUBSCRIBED;
 }
 

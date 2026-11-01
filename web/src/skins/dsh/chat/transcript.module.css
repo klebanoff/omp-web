@@ -1,0 +1,577 @@
+/* Transcript: message rows, markdown, thinking, tool calls, images. */
+
+.message {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.messageStreaming {
+  padding-bottom: 10px;
+}
+
+.role {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.messageStreaming .role {
+  color: var(--accent);
+}
+
+/* Conversational rows read as speech, not as labeled records. The labels stay
+   in the DOM for assistive tech. */
+.message[data-role="assistant"] .role,
+.message[data-role="user"] .role,
+.message[data-role="custom"] .role,
+.message[data-role="developer"] .role,
+.message[data-role="fileMention"] .role {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.message[data-role="assistant"] {
+  padding: 2px 0 8px;
+}
+
+.message[data-role="user"] {
+  max-width: 78%;
+  align-self: flex-end;
+  margin: 2px 0 10px;
+  border-radius: 18px;
+  background: var(--surface-2);
+  padding: 9px 14px 10px;
+}
+
+.body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  word-break: break-word;
+}
+
+.message[data-role="user"] .body {
+  gap: 6px;
+}
+
+.deferredPreview {
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.streamingCursor {
+  width: 7px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Markdown --------------------------------------------------------------- */
+
+.markdown {
+  min-width: 0;
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.message[data-role="user"] .markdown {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown table {
+  margin: 0 0 12px;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 22px;
+}
+
+.markdown li + li {
+  margin-top: 5px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 22px 0 8px;
+  color: var(--fg);
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.markdown h1 {
+  font-size: 18px;
+}
+
+.markdown h2 {
+  font-size: 16px;
+}
+
+.markdown h3 {
+  font-size: 14.5px;
+}
+
+.markdown a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.markdown a:hover {
+  color: color-mix(in srgb, var(--accent) 80%, var(--fg));
+}
+
+.markdown strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.markdown blockquote {
+  border-left: 2px solid color-mix(in srgb, var(--border) 90%, transparent);
+  padding: 2px 0 2px 14px;
+  color: var(--muted);
+}
+
+.markdown hr {
+  height: 1px;
+  margin: 18px 0;
+  border: 0;
+  background: color-mix(in srgb, var(--border) 75%, transparent);
+}
+
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  padding: 6px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Inline code is plain inline flow with a few pixels of padding; no line in a
+   paragraph is a flex item or justified. */
+.markdown code {
+  display: inline;
+  border: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface-2) 85%, transparent);
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  white-space: normal;
+}
+
+.markdown pre code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.codeBlock {
+  max-height: 420px;
+  overflow: auto;
+  margin: 10px 0 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* Markdown and attached images keep their natural size, capped by the column
+   and 640px, and never shrink as a flex item: a tall screenshot scrolls with
+   the transcript instead of being cropped. */
+.markdown img,
+.image {
+  display: inline-block;
+  align-self: flex-start;
+  flex: none;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 640px);
+  border: 0;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.imagePlaceholder {
+  display: inline-block;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 3px 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Thinking: one quiet summary line, collapsed by default, with the body
+   indented only when it is open. */
+.thinking {
+  min-width: 0;
+  margin: 1px 0 2px;
+}
+
+.thinkingSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  user-select: none;
+}
+
+.thinkingSummary::-webkit-details-marker {
+  display: none;
+}
+
+.thinkingSummary::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-left: 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 120ms ease;
+}
+
+.thinking[open] > .thinkingSummary::after {
+  transform: rotate(-135deg);
+}
+
+.thinkingSummary:hover {
+  color: var(--fg);
+}
+
+.thinkingBody {
+  margin-top: 6px;
+  padding-left: 1px;
+}
+
+.thinkingMarkdown {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+
+.thinkingLoading {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.thinkingError {
+  margin: 0;
+  color: var(--error);
+  font-size: 12px;
+}
+
+/* Tool calls match the installed harness row: name, a dot, one summary line.
+   The output sits in a hairline terminal under the row, not inside a gray card. */
+.toolCall {
+  min-width: 0;
+  background: transparent;
+}
+
+.toolCallError .toolStatus {
+  color: var(--error);
+}
+
+.toolSummary {
+  display: flex;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  padding: 0;
+  list-style: none;
+  cursor: pointer;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 24px;
+  user-select: none;
+}
+
+.toolSummary::-webkit-details-marker {
+  display: none;
+}
+
+.toolName {
+  flex: none;
+  color: var(--fg);
+  font-weight: 400;
+}
+
+.toolStatus {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolStatus::before {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 2px;
+  margin-right: 8px;
+  border-radius: 1px;
+  background: var(--muted);
+  vertical-align: middle;
+}
+
+.toolRunning,
+.toolError {
+  flex: none;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.toolRunning {
+  color: var(--warning);
+}
+
+.toolError {
+  color: var(--error);
+}
+
+.toolBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 4px 18px;
+}
+
+.toolArgs,
+.toolOutput {
+  max-height: 224px;
+  overflow: auto;
+  margin: 0;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.toolArgs {
+  color: var(--muted);
+}
+
+.toolResult {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.toolResultError .toolOutput {
+  border-left-color: var(--error);
+  color: color-mix(in srgb, var(--error) 75%, var(--fg));
+}
+
+.toolResultName {
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.toolImages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolPartial {
+  color: var(--warning);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.toolPending {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.standaloneResult {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Bash / Python ---------------------------------------------------------- */
+
+.execution {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.command,
+.output {
+  max-height: 300px;
+  overflow: auto;
+  margin: 0;
+  border-left: 2px solid color-mix(in srgb, var(--border) 85%, transparent);
+  padding-left: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.command {
+  border-left-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  color: var(--fg);
+}
+
+.output {
+  color: var(--muted);
+}
+
+.badge {
+  align-self: flex-start;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.badgeOk {
+  border-color: color-mix(in srgb, var(--success) 50%, var(--border));
+  color: var(--success);
+}
+
+.badgeError {
+  border-color: color-mix(in srgb, var(--error) 50%, var(--border));
+  color: var(--error);
+}
+
+.badgeMuted {
+  color: var(--muted);
+}
+
+/* Custom / developer / file mentions: normal paragraph flow in a column, with
+   images as non-shrinking children. */
+.textual {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.textual .markdown p {
+  text-align: left;
+}
+
+.subdued {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  padding: 1px 6px;
+  font-size: 11px;
+}

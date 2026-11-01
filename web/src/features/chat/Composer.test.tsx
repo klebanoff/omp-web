@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Composer } from "./Composer";
+import { testComposerClasses } from "./test-classes";
 
 afterEach(cleanup);
 
@@ -18,6 +19,7 @@ function renderComposer(overrides: ComposerOverrides = {}) {
   render(
     <Composer
       value={overrides.value ?? "hello"}
+      classes={testComposerClasses}
       onChange={onChange}
       onSubmit={onSubmit}
       running={overrides.running ?? false}

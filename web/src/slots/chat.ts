@@ -1,6 +1,6 @@
 import type { ModelEntry } from "@/api/agent";
-import type { SessionSnapshot } from "@/api/session-types";
-import type { SessionContextPayload, SessionSummary } from "@/api/workspace";
+import type { ChatMessage, SessionSnapshot } from "@/api/session-types";
+import type { SessionSummary } from "@/api/workspace";
 import type { DragPayload } from "@/drag/payload";
 import type { ExtensionRequest, ExtensionResponse } from "@/state/extension-store";
 
@@ -10,7 +10,12 @@ export interface ChatSlotProps {
   session: SessionSummary | null;
   selected: string | null;
   snapshot: SessionSnapshot | null;
-  context: SessionContextPayload | undefined;
+  /** Transcript window. Older pages are not included until `onLoadOlderHistory`. */
+  historyMessages: ChatMessage[];
+  historyEntryIds: string[];
+  hasOlderHistory: boolean;
+  historyOlderEpoch: number;
+  onLoadOlderHistory: () => void;
   streamError: string | null;
   extensionRequest: ExtensionRequest | null;
   extensionBusy: boolean;

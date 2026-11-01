@@ -47,12 +47,14 @@ export interface RunState {
 
 export interface StreamState {
   active: boolean;
+  /** Partial reply for the message currently being streamed. */
   message: Partial<AssistantMessage> | null;
   /**
-   * A finished reply stays on screen until the committed transcript contains
-   * it; dropping it first makes the chat jump. `release` clears it.
+   * Finished replies keep their place until the committed transcript contains
+   * them; dropping them first makes the chat jump. A run can emit several
+   * assistant entries (one per tool step), so every one is retained.
    */
-  held: boolean;
+  held: Partial<AssistantMessage>[];
 }
 
 export interface SessionState {
@@ -96,7 +98,7 @@ export function initialState(sessionId: string | null = null): SessionState {
     messages: [],
     entryIds: [],
     optimistic: null,
-    stream: { active: false, message: null, held: false },
+    stream: { active: false, message: null, held: [] },
     queue: EMPTY_QUEUE,
     toolResults: {},
     notices: [],
@@ -123,5 +125,19 @@ export function hasVisibleAssistantContent(message: Partial<AssistantMessage> | 
     if (block.type === "image") return true;
     if (block.type === "text") return typeof block.text === "string" && block.text.trim().length > 0;
     return false;
+  });
+}
+
+/**
+ * Whether a finished assistant entry must stay on screen until history echoes
+ * it. Tool calls and thinking count: a step that is only a tool call is still
+ * part of the transcript, and dropping it makes the chat jump.
+ */
+export function isHoldableAssistant(message: Partial<AssistantMessage> | null): boolean {
+  if (!message || !Array.isArray(message.content)) return false;
+  return message.content.some((block) => {
+    if (block.type === "text") return typeof block.text === "string" && block.text.trim().length > 0;
+    if (block.type === "thinking") return typeof block.thinking === "string" && block.thinking.trim().length > 0;
+    return block.type === "toolCall" || block.type === "image";
   });
 }

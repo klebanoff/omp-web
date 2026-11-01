@@ -253,12 +253,15 @@ export function parseHistoryCursor(raw: string | null): HistoryCursor | null {
 }
 
 export interface HistoryRange {
-  mode: "append" | "replace";
+  mode: "append" | "replace" | "prepend";
   baseEntryId: string | null;
   start: number;
   end: number;
   cursor: HistoryCursor;
+  /** Entries newer than this page are not included. */
   hasMore: boolean;
+  /** Entries older than this page exist. Set by tail and backward pages. */
+  hasOlder: boolean;
 }
 
 /**
@@ -289,15 +292,66 @@ export function selectHistoryRange(
     end,
     cursor: { firstEntryId, lastEntryId: entryIds[end - 1] ?? null },
     hasMore: end < entryIds.length,
+    hasOlder: false,
+  };
+}
+
+function assertPageLimit(limit: number): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_SYNC_MESSAGES) throw new RangeError("Invalid history page limit");
+}
+
+/**
+ * The last `limit` entries. The cursor still names the file prefix and the
+ * tip, so the next forward page appends commits after this tail.
+ */
+export function selectTailRange(entryIds: readonly string[], limit = MAX_SYNC_MESSAGES): HistoryRange {
+  assertPageLimit(limit);
+  const end = entryIds.length;
+  const start = Math.max(0, end - limit);
+  return {
+    mode: "replace",
+    baseEntryId: null,
+    start,
+    end,
+    cursor: { firstEntryId: entryIds[0] ?? null, lastEntryId: entryIds[end - 1] ?? null },
+    hasMore: false,
+    hasOlder: start > 0,
+  };
+}
+
+/**
+ * The page strictly before `beforeId`. A missing anchor returns null so the
+ * caller can fall back to the tail instead of inventing a gap.
+ */
+export function selectOlderRange(
+  entryIds: readonly string[],
+  beforeId: string,
+  limit = MAX_SYNC_MESSAGES,
+  positions?: ReadonlyMap<string, number>,
+): HistoryRange | null {
+  assertPageLimit(limit);
+  const index = positions ? positions.get(beforeId) ?? -1 : entryIds.indexOf(beforeId);
+  if (index < 0 || entryIds[index] !== beforeId) return null;
+  const end = index;
+  const start = Math.max(0, end - limit);
+  return {
+    mode: "prepend",
+    baseEntryId: beforeId,
+    start,
+    end,
+    cursor: { firstEntryId: entryIds[0] ?? null, lastEntryId: entryIds.at(-1) ?? null },
+    hasMore: false,
+    hasOlder: start > 0,
   };
 }
 
 export interface HistoryPageSlice<T> {
-  mode: "append" | "replace";
+  mode: "append" | "replace" | "prepend";
   baseEntryId: string | null;
   context: T;
   cursor: HistoryCursor;
   hasMore: boolean;
+  hasOlder: boolean;
 }
 
 /** Slice a built context (`messages`/`entryIds` stay parallel) to one page. */

@@ -37,6 +37,8 @@ export const contract = routeContract({
         boundary: z.enum(["1"]).optional(),
         cursor: z.string().optional(),
         limit: z.string().optional(),
+        tail: z.enum(["1"]).optional(),
+        before: z.string().optional(),
       }),
     },
     responses: {
@@ -46,10 +48,11 @@ export const contract = routeContract({
         sessionId: z.string().optional(),
         leafId: z.string().nullable().optional(),
         snapshot: z.unknown().nullable().optional(),
-        mode: z.enum(["append", "replace"]).optional(),
+        mode: z.enum(["append", "replace", "prepend"]).optional(),
         baseEntryId: z.string().nullable().optional(),
         cursor: z.unknown().optional(),
         hasMore: z.boolean().optional(),
+        hasOlder: z.boolean().optional(),
       }),
       400: errorEnvelope,
       404: errorEnvelope,
@@ -71,12 +74,14 @@ export async function GET(
   // Read-only transcript mode: include entries omitted from the active agent context.
   const includePreCompaction = url.searchParams.has("includePreCompaction");
   const sync = url.searchParams.get("sync");
+  const tail = url.searchParams.get("tail");
+  const before = url.searchParams.get("before");
   const boundary = url.searchParams.get("boundary");
   if (boundary !== null) {
     if (boundary !== "1" || url.searchParams.getAll("boundary").length !== 1) {
       return json({ error: "Invalid boundary mode", code: "invalid_boundary" }, { status: 400 });
     }
-    if (["sync", "leafId", "includePreCompaction", "cursor", "limit"].some((option) => url.searchParams.has(option))) {
+    if (["sync", "leafId", "includePreCompaction", "cursor", "limit", "tail", "before"].some((option) => url.searchParams.has(option))) {
       return json({ error: "Boundary mode requires the current active context", code: "invalid_boundary_options" }, { status: 400 });
     }
   }
@@ -84,6 +89,21 @@ export async function GET(
   let limit = MAX_SYNC_MESSAGES;
   if (sync !== null && sync !== "1") {
     return json({ error: "Invalid sync mode", code: "invalid_sync" }, { status: 400 });
+  }
+  if (tail !== null && tail !== "1") {
+    return json({ error: "Invalid history tail", code: "invalid_sync" }, { status: 400 });
+  }
+  if ((tail !== null || before !== null) && sync !== "1") {
+    return json({ error: "History window requires sync mode", code: "invalid_sync" }, { status: 400 });
+  }
+  if (tail !== null && before !== null) {
+    return json({ error: "History tail and before cannot combine", code: "invalid_sync" }, { status: 400 });
+  }
+  if ((tail !== null || before !== null) && url.searchParams.has("cursor")) {
+    return json({ error: "History window does not take a forward cursor", code: "invalid_sync" }, { status: 400 });
+  }
+  if (before !== null && (before.length === 0 || before.length > 256)) {
+    return json({ error: "Invalid history anchor", code: "invalid_sync_cursor" }, { status: 400 });
   }
   if (sync === "1") {
     try {
@@ -145,6 +165,8 @@ export async function GET(
         deferThinking,
         deferToolResultImages,
         includePreCompaction,
+        ...(tail === "1" ? { tail: true } : {}),
+        ...(before !== null ? { before } : {}),
       });
       // Sample AFTER the disk read: a quiet active run still supplies its most
       // recent partial output, and events arriving during the read win.

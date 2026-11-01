@@ -4,10 +4,11 @@ import type {
   ExtensionRequest,
   ExtensionResponse,
 } from "@/state/extension-store";
-import styles from "./extension-dialog.module.css";
+import type { ExtensionDialogClasses } from "./classes";
 
 export interface ExtensionDialogProps {
   request: ExtensionRequest;
+  classes: ExtensionDialogClasses;
   busy?: boolean;
   error?: string | null;
   onRespond: (response: ExtensionResponse) => void | Promise<void>;
@@ -42,6 +43,7 @@ function initialDraft(request: ExtensionRequest): DialogDraft {
 
 export function ExtensionDialog({
   request,
+  classes,
   busy = false,
   error = null,
   onRespond,
@@ -148,21 +150,21 @@ export function ExtensionDialog({
   };
 
   return (
-    <section className={styles.panel} aria-label={request.title}>
-      <header className={styles.header}>
-        <h2 className={styles.title}>{request.title}</h2>
-        <span className={styles.method}>{request.method}</span>
+    <section className={classes.panel} aria-label={request.title}>
+      <header className={classes.header}>
+        <h2 className={classes.title}>{request.title}</h2>
+        <span className={classes.method}>{request.method}</span>
       </header>
 
-      <form className={styles.form} onSubmit={submit}>
+      <form className={classes.form} onSubmit={submit}>
         {request.method === "confirm" ? (
-          <p className={styles.message}>{request.message}</p>
+          <p className={classes.message}>{request.message}</p>
         ) : null}
 
         {request.method === "select" ? (
-          <div className={styles.options} role="radiogroup" aria-label={request.title}>
+          <div className={classes.options} role="radiogroup" aria-label={request.title}>
             {request.options.map((option) => (
-              <label key={option} className={styles.option}>
+              <label key={option} className={classes.option}>
                 <input
                   type="radio"
                   name={`extension-select-${request.id}`}
@@ -172,7 +174,7 @@ export function ExtensionDialog({
                   disabled={busy}
                   onChange={() => setDraft({ ...current, selectValue: option })}
                 />
-                <span className={styles.optionLabel}>{option}</span>
+                <span className={classes.optionLabel}>{option}</span>
               </label>
             ))}
           </div>
@@ -180,7 +182,7 @@ export function ExtensionDialog({
 
         {request.method === "input" ? (
           <input
-            className={styles.input}
+            className={classes.input}
             type="text"
             aria-label="Response"
             {...(request.placeholder !== undefined ? { placeholder: request.placeholder } : {})}
@@ -192,7 +194,7 @@ export function ExtensionDialog({
 
         {request.method === "editor" ? (
           <textarea
-            className={request.promptStyle ? `${styles.input} ${styles.promptEditor}` : styles.input}
+            className={request.promptStyle ? `${classes.input} ${classes.promptEditor}` : classes.input}
             aria-label="Response"
             rows={6}
             value={current.text}
@@ -208,20 +210,20 @@ export function ExtensionDialog({
         ) : null}
 
         {request.method === "ask" ? (
-          <div className={styles.questions}>
+          <div className={classes.questions}>
             {request.questions.map((question) => {
               const entry = questionDraft(question);
               return (
-                <fieldset key={question.id} className={styles.question}>
-                  <legend className={styles.legend}>
+                <fieldset key={question.id} className={classes.question}>
+                  <legend className={classes.legend}>
                     {question.header ? (
-                      <span className={styles.questionHeader}>{question.header}</span>
+                      <span className={classes.questionHeader}>{question.header}</span>
                     ) : null}
-                    <span className={styles.questionText}>{question.question}</span>
+                    <span className={classes.questionText}>{question.question}</span>
                   </legend>
-                  <div className={styles.options} role="group">
+                  <div className={classes.options} role="group">
                     {question.options.map((option, index) => (
-                      <label key={option.label} className={styles.option}>
+                      <label key={option.label} className={classes.option}>
                         <input
                           type={question.multi ? "checkbox" : "radio"}
                           name={`extension-ask-${request.id}-${question.id}`}
@@ -231,26 +233,26 @@ export function ExtensionDialog({
                           disabled={busy}
                           onChange={() => toggleAskOption(question, option.label)}
                         />
-                        <span className={styles.optionBody}>
-                          <span className={styles.optionLabel}>{option.label}</span>
+                        <span className={classes.optionBody}>
+                          <span className={classes.optionLabel}>{option.label}</span>
                           {index === question.recommended ? (
-                            <span className={styles.recommended} aria-hidden="true">
+                            <span className={classes.recommended} aria-hidden="true">
                               recommended
                             </span>
                           ) : null}
                           {option.description !== undefined ? (
-                            <span className={styles.optionDescription}>{option.description}</span>
+                            <span className={classes.optionDescription}>{option.description}</span>
                           ) : null}
                           {option.preview !== undefined ? (
-                            <pre className={styles.preview}>{option.preview}</pre>
+                            <pre className={classes.preview}>{option.preview}</pre>
                           ) : null}
                         </span>
                       </label>
                     ))}
-                    <label className={styles.option}>
-                      <span className={styles.optionLabel}>Other</span>
+                    <label className={classes.option}>
+                      <span className={classes.optionLabel}>Other</span>
                       <input
-                        className={styles.input}
+                        className={classes.input}
                         type="text"
                         aria-label={`Other answer for ${question.question}`}
                         placeholder="Other"
@@ -267,21 +269,21 @@ export function ExtensionDialog({
         ) : null}
 
         {error ? (
-          <p className={styles.error} role="alert">
+          <p className={classes.error} role="alert">
             {error}
           </p>
         ) : null}
 
-        <footer className={styles.footer}>
+        <footer className={classes.footer}>
           <button
             type="button"
-            className={styles.cancel}
+            className={classes.cancel}
             disabled={busy}
             onClick={() => respond({ cancelled: true })}
           >
             Cancel
           </button>
-          <button type="submit" className={styles.submit} disabled={!canSubmit}>
+          <button type="submit" className={classes.submit} disabled={!canSubmit}>
             {request.method === "confirm" ? "Confirm" : "Submit"}
           </button>
         </footer>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("@/api/agent", () => ({
   fetchThinking: vi.fn(),
@@ -7,7 +7,13 @@ vi.mock("@/api/agent", () => ({
 
 import { fetchThinking } from "@/api/agent";
 import type { ChatMessage } from "@/api/session-types";
-import { MessageView } from "./MessageView";
+import type { JSX } from "react";
+import { MessageView, type MessageViewProps } from "./MessageView";
+import { testTranscriptClasses } from "./test-classes";
+
+function TranscriptRow(props: Omit<MessageViewProps, "classes">): JSX.Element {
+  return <MessageView classes={testTranscriptClasses} {...props} />;
+}
 
 const fetchThinkingMock = vi.mocked(fetchThinking);
 
@@ -24,7 +30,7 @@ function assistant(content: unknown): ChatMessage {
 describe("MessageView roles", () => {
   it("renders user markdown text and code", () => {
     const { container } = render(
-      <MessageView message={{ role: "user", content: "**bold** and `inline`\n\n```ts\nconst x = 1;\n```" }} />,
+      <TranscriptRow message={{ role: "user", content: "**bold** and `inline`\n\n```ts\nconst x = 1;\n```" }} />,
     );
 
     expect(screen.getByText("user")).toBeTruthy();
@@ -35,7 +41,7 @@ describe("MessageView roles", () => {
 
   it("never injects raw HTML from markdown", () => {
     const { container } = render(
-      <MessageView message={{ role: "assistant", content: "hello <script>alert(1)</script> world" }} />,
+      <TranscriptRow message={{ role: "assistant", content: "hello <script>alert(1)</script> world" }} />,
     );
 
     expect(container.querySelector("script")).toBeNull();
@@ -45,7 +51,7 @@ describe("MessageView roles", () => {
 
   it("opens links in a new tab and strips unsafe protocols", () => {
     render(
-      <MessageView
+      <TranscriptRow
         message={{
           role: "assistant",
           content: "[ok](https://example.com) [bad](javascript:alert(1))",
@@ -64,7 +70,7 @@ describe("MessageView roles", () => {
 
   it("renders user images with lazy loading", () => {
     render(
-      <MessageView
+      <TranscriptRow
         message={{
           role: "user",
           content: [
@@ -82,7 +88,7 @@ describe("MessageView roles", () => {
 
   it("renders a standalone tool result with its role label", () => {
     render(
-      <MessageView
+      <TranscriptRow
         message={{
           role: "toolResult",
           toolCallId: "t1",
@@ -100,7 +106,7 @@ describe("MessageView roles", () => {
 
   it("renders bash execution command and output", () => {
     render(
-      <MessageView
+      <TranscriptRow
         message={{
           role: "bashExecution",
           content: "",
@@ -118,14 +124,20 @@ describe("MessageView roles", () => {
   });
 
   it("renders unknown roles as subdued text", () => {
-    render(<MessageView message={{ role: "developer", content: "system note" }} />);
+    render(<TranscriptRow message={{ role: "developer", content: "system note" }} />);
     expect(screen.getByText("developer")).toBeTruthy();
     expect(screen.getByText("system note")).toBeTruthy();
   });
 
+  it("renders no placeholder for an empty assistant body", () => {
+    const { container } = render(<TranscriptRow message={assistant([])} />);
+    expect(container.querySelector('[data-role="assistant"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("(no content)");
+  });
+
   it("marks streaming assistant messages", () => {
     const { container } = render(
-      <MessageView message={assistant("partial")} streaming />,
+      <TranscriptRow message={assistant("partial")} streaming />,
     );
     expect(container.querySelector('[data-role="assistant"]')?.getAttribute("data-streaming")).toBe("true");
     expect(screen.getByText("partial")).toBeTruthy();
@@ -147,7 +159,7 @@ describe("MessageView tool calls", () => {
     ]);
 
     const { container } = render(
-      <MessageView
+      <TranscriptRow
         message={assistant([
           { type: "text", text: "Checking" },
           { type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path: "a.ts" } },
@@ -157,22 +169,78 @@ describe("MessageView tool calls", () => {
     );
 
     expect(screen.getByText("read")).toBeTruthy();
-    expect(screen.getByText("done")).toBeTruthy();
+    expect(screen.getByText("a.ts")).toBeTruthy();
+    expect(screen.queryByText("done")).toBeNull();
     expect(screen.getByText("file body")).toBeTruthy();
     expect(container.textContent).toContain('"path": "a.ts"');
     expect(container.querySelector('[data-pending="false"]')).not.toBeNull();
   });
 
-  it("shows an awaiting state when no result is paired", () => {
+  it("opens a tool call while the turn is still streaming", () => {
     const { container } = render(
-      <MessageView
+      <TranscriptRow
+        streaming
+        message={assistant([
+          { type: "toolCall", toolCallId: "call-live", toolName: "bash", input: { command: "ls" } },
+        ])}
+      />,
+    );
+
+    expect(container.querySelector("details")?.hasAttribute("open")).toBe(true);
+    expect(screen.getByText("running…")).toBeTruthy();
+  });
+
+  it("keeps a settled tool call collapsed", () => {
+    const toolResults = new Map<string, ChatMessage>([
+      [
+        "call-1",
+        {
+          role: "toolResult",
+          toolCallId: "call-1",
+          toolName: "read",
+          content: [{ type: "text", text: "file body" }],
+        },
+      ],
+    ]);
+    const { container } = render(
+      <TranscriptRow
+        message={assistant([
+          { type: "toolCall", toolCallId: "call-1", toolName: "read", input: { path: "a.ts" } },
+        ])}
+        toolResults={toolResults}
+      />,
+    );
+
+    expect(container.querySelector("details")?.hasAttribute("open")).toBe(false);
+    expect(screen.getByText("a.ts")).toBeTruthy();
+    expect(screen.queryByText("done")).toBeNull();
+  });
+
+  it("keeps a historical tool call collapsed while it is still awaiting a result", () => {
+    const { container } = render(
+      <TranscriptRow
         message={assistant([
           { type: "toolCall", toolCallId: "call-2", toolName: "grep", input: { pattern: "x" } },
         ])}
       />,
     );
 
-    expect(screen.getByText("awaiting result")).toBeTruthy();
+    expect(container.querySelector("details")?.hasAttribute("open")).toBe(false);
+    expect(screen.getByText("x")).toBeTruthy();
+    expect(screen.queryByText("awaiting result")).toBeNull();
+  });
+
+  it("shows an awaiting state when no result is paired", () => {
+    const { container } = render(
+      <TranscriptRow
+        message={assistant([
+          { type: "toolCall", toolCallId: "call-2", toolName: "grep", input: { pattern: "x" } },
+        ])}
+      />,
+    );
+
+    expect(screen.getByText("x")).toBeTruthy();
+    expect(screen.queryByText("awaiting result")).toBeNull();
     expect(screen.getByText("No result yet.")).toBeTruthy();
     expect(container.querySelector('[data-pending="true"]')).not.toBeNull();
   });
@@ -191,7 +259,7 @@ describe("MessageView tool calls", () => {
     ]);
 
     const { container } = render(
-      <MessageView
+      <TranscriptRow
         message={assistant([
           { type: "toolCall", toolCallId: "call-3", toolName: "bash", input: { command: "false" } },
         ])}
@@ -202,23 +270,105 @@ describe("MessageView tool calls", () => {
     expect(screen.getByText("error")).toBeTruthy();
     expect(container.querySelectorAll('[data-error="true"]').length).toBeGreaterThan(0);
   });
+
+  it("shows the command name instead of the raw command", () => {
+    render(
+      <TranscriptRow
+        message={assistant([
+          {
+            type: "toolCall",
+            toolCallId: "call-name",
+            toolName: "bash",
+            input: { i: "Checking docker availability", command: "docker --version" },
+          },
+        ])}
+      />,
+    );
+
+    expect(screen.getByText("Checking docker availability")).toBeTruthy();
+    expect(screen.queryByText("docker --version")).toBeNull();
+  });
 });
 
 describe("MessageView thinking", () => {
-  it("renders non-deferred thinking content", () => {
+  it("counts thinking seconds while the block is live and keeps them", () => {
+    vi.useFakeTimers();
+    try {
+      const message = {
+        role: "assistant",
+        timestamp: 50,
+        content: [{ type: "thinking", thinking: "still going" }],
+      };
+      const { rerender } = render(
+        <TranscriptRow sessionId="think-clock" streaming message={message} />,
+      );
+
+      expect(screen.getByText("0s")).toBeTruthy();
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(screen.getByText("2s")).toBeTruthy();
+
+      rerender(<TranscriptRow sessionId="think-clock" message={message} />);
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(screen.getByText("2s")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows the saved call duration on a finished thinking block", () => {
     render(
-      <MessageView
+      <TranscriptRow
+        message={{
+          role: "assistant",
+          duration: 1815,
+          content: [{ type: "thinking", thinking: "done" }],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("2s")).toBeTruthy();
+  });
+
+  it("opens thinking while the turn is streaming", () => {
+    const { container } = render(
+      <TranscriptRow
+        streaming
+        message={assistant([{ type: "thinking", thinking: "still going" }])}
+      />,
+    );
+
+    expect(container.querySelector("details")?.hasAttribute("open")).toBe(true);
+    expect(screen.getByText("still going")).toBeTruthy();
+  });
+
+  it("keeps saved thinking collapsed", async () => {
+    const { container } = render(
+      <TranscriptRow message={assistant([{ type: "thinking", thinking: "already done" }])} />,
+    );
+
+    expect(container.querySelector("details")?.hasAttribute("open")).toBe(false);
+    await waitFor(() => expect(screen.getByText("already done")).toBeTruthy());
+    expect(container.querySelector("details")?.hasAttribute("open")).toBe(false);
+  });
+
+  it("renders non-deferred thinking content", async () => {
+    render(
+      <TranscriptRow
         message={assistant([{ type: "thinking", thinking: "pondering the problem" }])}
       />,
     );
-    expect(screen.getByText("pondering the problem")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("pondering the problem")).toBeTruthy());
   });
 
   it("fetches a deferred thinking block on first open", async () => {
     fetchThinkingMock.mockResolvedValue("deep thought");
 
     render(
-      <MessageView
+      <TranscriptRow
         message={assistant([{ type: "thinking", thinking: "", deferred: true }])}
         sessionId="session-1"
         entryId="entry-1"
@@ -239,7 +389,7 @@ describe("MessageView thinking", () => {
     fetchThinkingMock.mockRejectedValue(new Error("gone"));
 
     render(
-      <MessageView
+      <TranscriptRow
         message={assistant([{ type: "thinking", thinking: "", deferred: true }])}
         sessionId="session-1"
         entryId="entry-1"
@@ -251,8 +401,9 @@ describe("MessageView thinking", () => {
     expect(await screen.findByText("gone")).toBeTruthy();
   });
 
-  it("shows an empty state for a non-deferred empty block", () => {
-    render(<MessageView message={assistant([{ type: "thinking", thinking: "" }])} />);
-    expect(screen.getByText("No thinking content.")).toBeTruthy();
+  it("renders only the summary for a non-deferred empty block", () => {
+    const { container } = render(<TranscriptRow message={assistant([{ type: "thinking", thinking: "" }])} />);
+    expect(screen.getByText("Thinking")).toBeTruthy();
+    expect(container.querySelector("details")?.textContent).toBe("Thinking");
   });
 });

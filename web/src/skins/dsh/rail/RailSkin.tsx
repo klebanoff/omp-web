@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { basename, comparablePath } from "@/api/paths";
-import type { SessionSummary } from "@/api/workspace";
+import { buildRailView, type RailSessionItem } from "@/features/rail/rail-view";
 import { NotificationBell } from "@/features/notifications/NotificationBell";
 import type { RailSlotProps } from "@/slots/rail";
 import { toggleTheme, useTheme } from "@/state/theme";
 import {
   ChevronIcon,
   FilterIcon,
+  FolderIcon,
   MoonIcon,
   PlusIcon,
   RefreshIcon,
@@ -17,56 +17,6 @@ import {
   XIcon,
 } from "./icons";
 import styles from "./rail.module.css";
-
-interface ProjectGroup {
-  key: string;
-  path: string;
-  label: string;
-  pinOrder: number | null;
-  sortOrder: number | null;
-  sessions: SessionSummary[];
-}
-
-const LEADING_EMOJI = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\p{Emoji_Modifier})?)*\s*/u;
-
-function sessionLabel(session: SessionSummary): string {
-  const raw = session.name?.trim() || session.id.slice(0, 8);
-  const label = raw.replace(LEADING_EMOJI, "").trim();
-  return label || session.id.slice(0, 8);
-}
-
-function sessionTime(session: SessionSummary): string {
-  const raw = session.lastMessageAt ?? session.modified;
-  const time = new Date(raw).getTime();
-  if (!Number.isFinite(time)) return "";
-  const minutes = Math.max(0, Math.round((Date.now() - time) / 60_000));
-  if (minutes < 1) return "now";
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.round(hours / 24)}d`;
-}
-
-function byRecency(left: SessionSummary, right: SessionSummary): number {
-  const leftTime = new Date(left.lastMessageAt ?? left.modified).getTime();
-  const rightTime = new Date(right.lastMessageAt ?? right.modified).getTime();
-  return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
-}
-
-function projectOrder(left: ProjectGroup, right: ProjectGroup): number {
-  const leftPin = left.pinOrder ?? Number.POSITIVE_INFINITY;
-  const rightPin = right.pinOrder ?? Number.POSITIVE_INFINITY;
-  if (leftPin !== rightPin) return leftPin - rightPin;
-  const leftSort = left.sortOrder ?? Number.POSITIVE_INFINITY;
-  const rightSort = right.sortOrder ?? Number.POSITIVE_INFINITY;
-  if (leftSort !== rightSort) return leftSort - rightSort;
-  return left.label.localeCompare(right.label);
-}
-
-function matchesQuery(session: SessionSummary, needle: string): boolean {
-  return sessionLabel(session).toLowerCase().includes(needle)
-    || session.cwd.toLowerCase().includes(needle);
-}
 
 export function RailSkin({
   sessions,
@@ -86,71 +36,23 @@ export function RailSkin({
   const [runningOnly, setRunningOnly] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
+  const searchToggleRef = useRef<HTMLButtonElement>(null);
+  const restoreSearchFocus = useRef(false);
   const theme = useTheme();
 
   useEffect(() => {
-    if (searchOpen) searchRef.current?.focus();
+    if (searchOpen) {
+      searchRef.current?.focus();
+    } else if (restoreSearchFocus.current) {
+      restoreSearchFocus.current = false;
+      searchToggleRef.current?.focus();
+    }
   }, [searchOpen]);
 
-  const groups = useMemo(() => {
-    const map = new Map<string, ProjectGroup>();
-    for (const project of projects) {
-      const key = comparablePath(project.path);
-      map.set(key, {
-        key,
-        path: project.path,
-        label: project.alias?.trim() || basename(project.path),
-        pinOrder: project.pinOrder ?? null,
-        sortOrder: project.sortOrder ?? null,
-        sessions: [],
-      });
-    }
-    for (const session of sessions) {
-      const root = session.projectRoot ?? session.cwd;
-      const key = comparablePath(root);
-      let group = map.get(key);
-      if (!group) {
-        group = {
-          key,
-          path: root,
-          label: basename(root),
-          pinOrder: null,
-          sortOrder: null,
-          sessions: [],
-        };
-        map.set(key, group);
-      }
-      group.sessions.push(session);
-    }
-    for (const group of map.values()) group.sessions.sort(byRecency);
-    return [...map.values()].sort(projectOrder);
-  }, [projects, sessions]);
-
-  const needle = query.trim().toLowerCase();
-
-  const activeSessions = useMemo(() => {
-    return sessions
-      .filter((session) => running.has(session.id))
-      .filter((session) => !needle || matchesQuery(session, needle))
-      .sort(byRecency);
-  }, [needle, running, sessions]);
-
-  const visibleGroups = useMemo(() => {
-    return groups
-      .map((group) => {
-        let visible = group.sessions;
-        if (needle) visible = visible.filter((session) => matchesQuery(session, needle));
-        if (runningOnly) visible = visible.filter((session) => running.has(session.id));
-        return { ...group, sessions: visible };
-      })
-      .filter((group) => {
-        if (runningOnly) return group.sessions.length > 0;
-        if (!needle) return true;
-        return group.label.toLowerCase().includes(needle)
-          || group.path.toLowerCase().includes(needle)
-          || group.sessions.length > 0;
-      });
-  }, [groups, needle, running, runningOnly]);
+  const view = useMemo(
+    () => buildRailView({ sessions, projects, running, query, runningOnly }),
+    [sessions, projects, running, query, runningOnly],
+  );
 
   const toggleGroup = (key: string) => {
     setCollapsed((previous) => {
@@ -162,27 +64,28 @@ export function RailSkin({
   };
 
   const closeSearch = () => {
+    restoreSearchFocus.current = true;
     setSearchOpen(false);
     setQuery("");
   };
 
-  const renderSession = (session: SessionSummary, groupLabel?: string) => {
-    const active = session.id === selected;
+  const renderSession = (item: RailSessionItem) => {
+    const active = item.id === selected;
     return (
       <button
-        key={session.id}
+        key={item.id}
         type="button"
-        className={active ? styles.sessionActive : styles.session}
-        onClick={() => onSelect(session.id)}
-        title={session.cwd}
+        className={active ? `${styles.session} ${styles.sessionActive}` : styles.session}
+        onClick={() => onSelect(item.id)}
+        title={item.time ? `${item.cwd} · ${item.time}` : item.cwd}
         aria-current={active ? "page" : undefined}
       >
-        <span className={running.has(session.id) ? styles.dotRunning : styles.dot} aria-hidden="true" />
-        <span className={styles.sessionText}>
-          <span className={styles.sessionName}>{sessionLabel(session)}</span>
-          {groupLabel ? <span className={styles.sessionProject}>{groupLabel}</span> : null}
+        <span className={styles.dotSlot} aria-hidden="true">
+          {item.running ? <span className={styles.dotRunning} /> : null}
         </span>
-        <span className={styles.sessionMeta}>{sessionTime(session)}</span>
+        <span className={styles.sessionName}>{item.label}</span>
+        {item.projectLabel ? <span className={styles.sessionProject}>{item.projectLabel}</span> : null}
+        <span className={styles.sessionMeta}>{item.time}</span>
       </button>
     );
   };
@@ -190,11 +93,15 @@ export function RailSkin({
   const footerStatus = loading
     ? "Connecting…"
     : `${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}`;
+  const empty = !loading && !error && view.active.length === 0 && view.groups.length === 0;
 
   return (
     <aside className={styles.rail}>
       <header className={styles.header}>
-        <span className={styles.brand}>omp</span>
+        <span className={styles.brand}>
+          <span className={styles.brandName}>omp</span>
+          <span className={styles.brandTag}>Harness</span>
+        </span>
         <div className={styles.headerActions}>
           <NotificationBell />
           <button
@@ -204,7 +111,7 @@ export function RailSkin({
             title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
             aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
           >
-            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            {theme === "dark" ? <SunIcon size={15} /> : <MoonIcon size={15} />}
           </button>
           <button
             type="button"
@@ -213,38 +120,50 @@ export function RailSkin({
             title="Hide session rail"
             aria-label="Hide session rail"
           >
-            <SidebarIcon />
+            <SidebarIcon size={15} />
           </button>
         </div>
       </header>
 
-      <div className={styles.scroll}>
-        {error ? <p className={styles.error}>{error}</p> : null}
-        {loading && sessions.length === 0 ? <p className={styles.muted}>Loading sessions…</p> : null}
-
-        {activeSessions.length > 0 ? (
-          <section className={styles.section}>
-            <div className={styles.sectionHeader}>
-              <span className={styles.sectionLabel}>Active</span>
-            </div>
-            {activeSessions.map((session) => {
-              const group = groups.find((candidate) => candidate.sessions.some((item) => item.id === session.id));
-              return renderSession(session, group?.label);
-            })}
-          </section>
-        ) : null}
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <span className={styles.sectionLabel}>Projects</span>
-            <div className={styles.sectionActions}>
+      <div className={styles.listHeader}>
+        {searchOpen ? (
+          <div className={styles.searchWrap}>
+            <span className={styles.searchIcon}>
+              <SearchIcon size={13} />
+            </span>
+            <input
+              ref={searchRef}
+              className={styles.search}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") closeSearch();
+              }}
+              placeholder="Filter sessions"
+              aria-label="Search sessions"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              className={styles.searchClose}
+              onClick={closeSearch}
+              title="Close search"
+              aria-label="Close search"
+            >
+              <XIcon size={13} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <span className={styles.listLabel}>Workspaces</span>
+            <div className={styles.listActions}>
               <button
+                ref={searchToggleRef}
                 type="button"
-                className={searchOpen ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton}
-                onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
-                title={searchOpen ? "Close search" : "Search sessions"}
-                aria-label={searchOpen ? "Close search" : "Search sessions"}
-                aria-pressed={searchOpen}
+                className={styles.iconButton}
+                onClick={() => setSearchOpen(true)}
+                title="Search sessions"
+                aria-label="Search sessions"
               >
                 <SearchIcon size={15} />
               </button>
@@ -253,7 +172,7 @@ export function RailSkin({
                 className={runningOnly ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton}
                 onClick={() => setRunningOnly((value) => !value)}
                 title={runningOnly ? "Show all sessions" : "Show running sessions only"}
-                aria-label="Show running sessions only"
+                aria-label={runningOnly ? "Show all sessions" : "Show running sessions only"}
                 aria-pressed={runningOnly}
               >
                 <FilterIcon size={15} />
@@ -268,104 +187,83 @@ export function RailSkin({
                 <RefreshIcon size={15} />
               </button>
             </div>
-          </div>
+          </>
+        )}
+      </div>
 
-          {searchOpen ? (
-            <div className={styles.searchWrap}>
-              <span className={styles.searchIcon}>
-                <SearchIcon size={14} />
-              </span>
-              <input
-                ref={searchRef}
-                className={styles.search}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") closeSearch();
-                }}
-                placeholder="Search sessions"
-                aria-label="Search sessions"
-                spellCheck={false}
-              />
-              {query ? (
+      <div className={styles.scroll}>
+        {error ? <p className={styles.error}>{error}</p> : null}
+        {loading && sessions.length === 0 ? <p className={styles.muted}>Loading sessions…</p> : null}
+
+        {view.active.length > 0 ? (
+          <section className={styles.section}>
+            <div className={styles.sectionLabelRow}>
+              <span className={styles.sectionLabel}>Active</span>
+              <span className={styles.sectionCount}>{view.active.length}</span>
+            </div>
+            {view.active.map(renderSession)}
+          </section>
+        ) : null}
+
+        {view.groups.map((group) => {
+          const isCollapsed = collapsed.has(group.key);
+          return (
+            <section key={group.key} className={styles.section}>
+              <div className={styles.groupHeaderRow}>
                 <button
                   type="button"
-                  className={styles.searchClear}
-                  onClick={() => {
-                    setQuery("");
-                    searchRef.current?.focus();
-                  }}
-                  title="Clear search"
-                  aria-label="Clear search"
+                  className={styles.groupHeader}
+                  onClick={() => toggleGroup(group.key)}
+                  title={group.path}
+                  aria-expanded={!isCollapsed}
                 >
-                  <XIcon size={13} />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {visibleGroups.map((group) => {
-            const isCollapsed = collapsed.has(group.key);
-            return (
-              <div key={group.key} className={styles.group}>
-                <div className={styles.groupHeaderRow}>
-                  <button
-                    type="button"
-                    className={styles.groupHeader}
-                    onClick={() => toggleGroup(group.key)}
-                    title={group.path}
-                    aria-expanded={!isCollapsed}
-                  >
-                    <span className={isCollapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron}>
-                      <ChevronIcon size={14} />
-                    </span>
-                    <span className={styles.groupLabel}>{group.label}</span>
+                  <span className={isCollapsed ? `${styles.chevron} ${styles.chevronCollapsed}` : styles.chevron}>
+                    <ChevronIcon size={12} />
+                  </span>
+                  <span className={styles.groupIcon}>
+                    <FolderIcon size={14} />
+                  </span>
+                  <span className={styles.groupLabel}>{group.label}</span>
+                  {group.sessions.length > 0 ? (
                     <span className={styles.groupCount}>{group.sessions.length}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.groupAdd}
-                    onClick={() => onNewSession(group.path)}
-                    title={`New session in ${group.label}`}
-                    aria-label={`New session in ${group.label}`}
-                  >
-                    <PlusIcon size={14} />
-                  </button>
-                </div>
-                {isCollapsed ? null : (
-                  <div className={styles.groupSessions}>
-                    {group.sessions.length === 0 ? <span className={styles.emptyGroup}>No sessions</span> : null}
-                    {group.sessions.map((session) => renderSession(session))}
-                  </div>
-                )}
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  className={styles.groupAdd}
+                  onClick={() => onNewSession(group.path)}
+                  title={`New session in ${group.label}`}
+                  aria-label={`New session in ${group.label}`}
+                >
+                  <PlusIcon size={13} />
+                </button>
               </div>
-            );
-          })}
-          {!loading && visibleGroups.length === 0 ? (
-            <p className={styles.muted}>
-              {runningOnly ? "No running sessions" : needle ? "No matching sessions" : "No sessions"}
-            </p>
-          ) : null}
-        </section>
+              {isCollapsed ? null : (
+                <div className={styles.groupSessions}>{group.sessions.map(renderSession)}</div>
+              )}
+            </section>
+          );
+        })}
+
+        {empty ? (
+          <p className={styles.muted}>
+            {runningOnly ? "No running sessions" : query.trim() ? "No matching sessions" : "No sessions"}
+          </p>
+        ) : null}
       </div>
 
       <footer className={styles.footer}>
-        <div className={styles.profile}>
-          <span className={styles.avatar} aria-hidden="true">o</span>
-          <span className={styles.profileText}>
-            <span className={styles.profileName}>Local workspace</span>
-            <span className={styles.profileStatus}>{footerStatus}</span>
-          </span>
-          <button
-            type="button"
-            className={styles.profileAction}
-            onClick={onOpenSettings}
-            title="System settings (Ctrl/Cmd+,)"
-            aria-label="System settings"
-          >
-            <SettingsIcon size={16} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className={styles.footerButton}
+          onClick={onOpenSettings}
+          title="System settings (Ctrl/Cmd+,)"
+          aria-label="System settings"
+        >
+          <SettingsIcon size={15} />
+          <span>Settings</span>
+        </button>
+        <span className={styles.footerStatus}>{footerStatus}</span>
       </footer>
     </aside>
   );

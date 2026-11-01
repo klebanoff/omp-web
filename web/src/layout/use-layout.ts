@@ -12,6 +12,13 @@ export function useLayout(): LayoutState {
   return useSyncExternalStore(subscribeLayout, getLayout, getLayout);
 }
 
+/** One layout field. An unchanged number or flag does not redraw this subscriber. */
+export function useLayoutField<Key extends keyof LayoutState>(key: Key): LayoutState[Key] {
+  const subscribe = useCallback((listener: () => void) => subscribeLayout(listener), []);
+  const getSnapshot = useCallback(() => getLayout()[key], [key]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
 const EMPTY_CONTEXT: WorkbenchContext = {
   roots: [],
   view: "files",

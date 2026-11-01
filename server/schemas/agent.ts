@@ -86,11 +86,12 @@ export const sessionContextSchema = z.looseObject({
 
 /** Incremental history page plus the authoritative live snapshot. */
 export const sessionSyncResponseSchema = z.looseObject({
-  mode: z.enum(["append", "replace"]),
+  mode: z.enum(["append", "replace", "prepend"]),
   baseEntryId: z.string().nullable(),
   context: sessionContextSchema,
   cursor: historyCursorSchema,
   hasMore: z.boolean(),
+  hasOlder: z.boolean(),
   sessionId: z.string(),
   leafId: z.string().nullable(),
   snapshot: z.unknown().nullable().optional(),

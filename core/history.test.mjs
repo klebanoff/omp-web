@@ -10,6 +10,8 @@ const {
   historyCursor,
   parseHistoryCursor,
   selectHistoryRange,
+  selectOlderRange,
+  selectTailRange,
   paginateContext,
 } = await import("./history.ts");
 
@@ -280,9 +282,37 @@ test("indexed history selection preserves cursor boundaries and rejects stale po
   assert.equal(changed.baseEntryId, null);
 });
 
+test("a tail page is the end of the file and keeps a forward cursor", () => {
+  const range = selectTailRange(["a", "b", "c", "d", "e"], 2);
+  assert.equal(range.mode, "replace");
+  assert.deepEqual(["a", "b", "c", "d", "e"].slice(range.start, range.end), ["d", "e"]);
+  assert.deepEqual(range.cursor, { firstEntryId: "a", lastEntryId: "e" });
+  assert.equal(range.hasMore, false);
+  assert.equal(range.hasOlder, true);
+  const short = selectTailRange(["a", "b"], 40);
+  assert.equal(short.hasOlder, false);
+  assert.deepEqual(["a", "b"].slice(short.start, short.end), ["a", "b"]);
+});
+
+test("an older page is strictly before the anchor and does not move the tip cursor", () => {
+  const ids = ["a", "b", "c", "d", "e"];
+  const range = selectOlderRange(ids, "d", 2);
+  assert.equal(range.mode, "prepend");
+  assert.equal(range.baseEntryId, "d");
+  assert.deepEqual(ids.slice(range.start, range.end), ["b", "c"]);
+  assert.deepEqual(range.cursor, { firstEntryId: "a", lastEntryId: "e" });
+  assert.equal(range.hasOlder, true);
+  const first = selectOlderRange(ids, "b", 2);
+  assert.deepEqual(ids.slice(first.start, first.end), ["a"]);
+  assert.equal(first.hasOlder, false);
+  assert.equal(selectOlderRange(ids, "missing", 2), null);
+});
+
 test("page limits are validated", () => {
   for (const limit of [0, -1, 1.5, 201]) {
     assert.throws(() => selectHistoryRange(["a"], null, limit), RangeError);
+    assert.throws(() => selectTailRange(["a"], limit), RangeError);
+    assert.throws(() => selectOlderRange(["a"], "a", limit), RangeError);
   }
 });
 

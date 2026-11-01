@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueuePanel } from "./QueuePanel";
+import { testQueueClasses } from "./test-classes";
 
 afterEach(cleanup);
 
 describe("QueuePanel", () => {
   it("renders nothing when both queues are empty", () => {
     const { container } = render(
-      <QueuePanel queue={{ steering: [], followUp: [] }} onRemove={vi.fn()} onPromote={vi.fn()} />,
+      <QueuePanel classes={testQueueClasses} queue={{ steering: [], followUp: [] }} onRemove={vi.fn()} onPromote={vi.fn()} />,
     );
     expect(container.firstChild).toBeNull();
   });
@@ -15,7 +16,7 @@ describe("QueuePanel", () => {
   it("removes steering and follow-up entries with their queue", () => {
     const onRemove = vi.fn();
     render(
-      <QueuePanel
+      <QueuePanel classes={testQueueClasses}
         queue={{ steering: ["steer me"], followUp: ["later"] }}
         onRemove={onRemove}
         onPromote={vi.fn()}
@@ -31,7 +32,7 @@ describe("QueuePanel", () => {
   it("promotes a follow-up to steering", () => {
     const onPromote = vi.fn();
     render(
-      <QueuePanel queue={{ steering: [], followUp: ["later"] }} onRemove={vi.fn()} onPromote={onPromote} />,
+      <QueuePanel classes={testQueueClasses} queue={{ steering: [], followUp: ["later"] }} onRemove={vi.fn()} onPromote={onPromote} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Steer later" }));
     expect(onPromote).toHaveBeenCalledWith("later");
@@ -39,7 +40,7 @@ describe("QueuePanel", () => {
 
   it("disables every action while pending", () => {
     render(
-      <QueuePanel
+      <QueuePanel classes={testQueueClasses}
         queue={{ steering: ["a"], followUp: ["b"] }}
         pending
         onRemove={vi.fn()}

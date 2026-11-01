@@ -30,7 +30,7 @@ import { taskResultRetryFailure, taskResultStructuredOutput, taskResultUsageCost
 import type { TodoPhase } from "./pi-types";
 import { projectIdentityKey, sessionPathKey } from "./paths";
 import { resolveProject, type ProjectInfo } from "./worktree";
-import { selectHistoryRange, type SessionHistoryCursor, type SessionHistoryPage } from "./session-sync";
+import { selectHistoryRange, selectOlderRange, selectTailRange, type SessionHistoryCursor, type SessionHistoryPage } from "./session-sync";
 import { PASSIVE_TOOL_CONTEXT } from "../core/display";
 
 export { getAgentDir };
@@ -706,12 +706,23 @@ export function getSessionHistoryPage(
   cursor: SessionHistoryCursor | null,
   limit: number,
   leafId?: string,
-  options: { deferThinking?: boolean; deferToolResultImages?: boolean; includePreCompaction?: boolean } = {},
+  options: {
+    deferThinking?: boolean;
+    deferToolResultImages?: boolean;
+    includePreCompaction?: boolean;
+    /** Last page of the file. Ignores `cursor`. */
+    tail?: boolean;
+    /** Page strictly before this entry. A missing anchor falls back to the tail. */
+    before?: string;
+  } = {},
 ): { history: SessionHistoryPage; leafId: string | null; tipId: string | null } {
   const { index, cache, key } = getSessionHistoryIndex(filePath, leafId, !!options.includePreCompaction);
   const version = index.version;
 
-  const { start, end, ...page } = selectHistoryRange(index.entryIds, cursor, limit, index.positions);
+  const older = options.before ? selectOlderRange(index.entryIds, options.before, limit, index.positions) : null;
+  const { start, end, ...page } = options.tail || (options.before !== undefined && older === null)
+    ? selectTailRange(index.entryIds, limit)
+    : older ?? selectHistoryRange(index.entryIds, cursor, limit, index.positions);
   const rawEntries: SessionEntry[] = [];
   if (start < end) {
     const fd = openSync(filePath, "r");
