@@ -10,6 +10,7 @@ import {
   type WebSettings,
 } from "@/api/system-config";
 import { isRecord } from "@/api/guards";
+import { applyTheme, useTheme } from "@/state/theme";
 import {
   systemConfigErrorMessage,
   useNativeSettings,
@@ -261,9 +262,20 @@ export function SettingsForm(): JSX.Element {
   };
 
   const settings = draft;
+  const theme = useTheme();
 
   return (
     <div className={styles.panel}>
+      <section className={styles.block} aria-label="Appearance">
+        <Section title="Appearance">
+          <ToggleField
+            label="Dark theme"
+            checked={theme === "dark"}
+            disabled={false}
+            onChange={(checked) => applyTheme(checked ? "dark" : "light")}
+          />
+        </Section>
+      </section>
       <section className={styles.block} aria-label="Native settings">
         <header className={styles.header}>
           <h2 className={styles.title}>Settings</h2>

@@ -102,7 +102,6 @@ export function ChatSkin({
 
   const notices = snapshot?.session.notices ?? EMPTY_NOTICES;
 
-  const connection = snapshot?.session.connection ?? (session ? "saved" : "idle");
   const serverDraft = snapshot?.draft.value ?? "";
 
   useEffect(() => {
@@ -155,10 +154,6 @@ export function ChatSkin({
           <span className={styles.title}>{title}</span>
           {project !== "" ? <span className={styles.project}>{project}</span> : null}
         </div>
-        <span className={styles.status} data-running={running ? "true" : "false"}>
-          <span className={styles.statusDot} aria-hidden="true" />
-          {running ? "running" : connection}
-        </span>
       </header>
 
       <div className={styles.transcript} ref={scrollRef} onScroll={onScroll}>

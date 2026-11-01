@@ -1,4 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { pickBrowserFolder } from "@/features/rail/pick-workspace-folder";
+import { registerProject } from "@/api/workspace";
 import { useProjects } from "@/features/projects/use-projects";
 import { useSessions } from "@/features/sessions/use-sessions";
 import { getLayout, updateLayout } from "@/layout/layout-store";
@@ -34,6 +36,8 @@ export function RailColumn({
   const width = useLayoutField("railWidth");
   const sessions = useSessions();
   const projects = useProjects();
+  const [addError, setAddError] = useState<string | null>(null);
+  const adding = useRef(false);
   const fallbackRunning = sessions.data?.runningSessionIds ?? EMPTY_RUNNING;
   const running = useRunningSessions(fallbackRunning);
   const RailSkin = skinFor("rail", appearance);
@@ -70,7 +74,7 @@ export function RailColumn({
           selected={selected}
           running={running}
           loading={sessions.isLoading}
-          error={sessions.isError ? sessions.error.message : null}
+          error={addError ?? (sessions.isError ? sessions.error.message : null)}
           onSelect={onSelect}
           onNewSession={onNewSession}
           onRefresh={() => {
@@ -79,6 +83,23 @@ export function RailColumn({
           }}
           onCollapse={() => updateLayout({ railCollapsed: true })}
           onOpenSettings={onOpenSettings}
+          onAddWorkspace={() => {
+            if (adding.current) return;
+            adding.current = true;
+            setAddError(null);
+            void pickBrowserFolder()
+              .then(async (path) => {
+                if (!path) return;
+                await registerProject(path);
+                await projects.refetch();
+              })
+              .catch((cause: unknown) => {
+                setAddError(cause instanceof Error ? cause.message : "Unable to add this folder");
+              })
+              .finally(() => {
+                adding.current = false;
+              });
+          }}
         />
       </div>
       <ResizeHandle

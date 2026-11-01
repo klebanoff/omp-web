@@ -3,10 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectSummary } from "@/api/workspace";
 import { RailSkin } from "./RailSkin";
 
-vi.mock("@/features/notifications/NotificationBell", () => ({
-  NotificationBell: () => null,
-}));
-
 afterEach(cleanup);
 
 const projects = [
@@ -27,6 +23,7 @@ function renderRail(onNewSession: (projectPath?: string) => void) {
       onRefresh={() => {}}
       onCollapse={() => {}}
       onOpenSettings={() => {}}
+      onAddWorkspace={() => {}}
     />,
   );
 }
@@ -39,5 +36,30 @@ describe("rail new session entry point", () => {
     fireEvent.click(screen.getByRole("button", { name: "New session in Games" }));
 
     expect(onNewSession).toHaveBeenCalledWith("/projects/games");
+  });
+
+  it("offers a workspace folder button beside search", () => {
+    const onToggleWorkspacePicker = vi.fn();
+    render(
+      <RailSkin
+        sessions={[]}
+        projects={projects}
+        selected={null}
+        running={new Set()}
+        loading={false}
+        error={null}
+        onSelect={() => {}}
+        onNewSession={() => {}}
+        onRefresh={() => {}}
+        onCollapse={() => {}}
+        onOpenSettings={() => {}}
+        onAddWorkspace={onToggleWorkspacePicker}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add workspace folder" }));
+
+    expect(onToggleWorkspacePicker).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Search sessions" })).toBeTruthy();
   });
 });

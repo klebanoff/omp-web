@@ -12,4 +12,6 @@ export interface RailSlotProps {
   onRefresh: () => void;
   onCollapse: () => void;
   onOpenSettings: () => void;
+  /** Opens the browser folder dialog and registers the chosen directory. */
+  onAddWorkspace: () => void;
 }

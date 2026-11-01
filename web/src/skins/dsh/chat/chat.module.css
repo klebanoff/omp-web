@@ -60,39 +60,6 @@
   color: color-mix(in srgb, var(--muted) 65%, transparent);
 }
 
-.status {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.statusDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.45;
-}
-
-.status[data-running="true"] {
-  color: var(--success);
-}
-
-.status[data-running="true"] .statusDot {
-  opacity: 1;
-  animation: statusPulse 1.8s ease-in-out infinite;
-}
-
-@keyframes statusPulse {
-  50% {
-    opacity: 0.3;
-  }
-}
-
 .transcript {
   min-height: 0;
   flex: 1;

@@ -1,19 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildRailView, type RailSessionItem } from "@/features/rail/rail-view";
-import { NotificationBell } from "@/features/notifications/NotificationBell";
 import type { RailSlotProps } from "@/slots/rail";
-import { toggleTheme, useTheme } from "@/state/theme";
 import {
   ChevronIcon,
   FilterIcon,
   FolderIcon,
-  MoonIcon,
   PlusIcon,
-  RefreshIcon,
   SearchIcon,
   SettingsIcon,
   SidebarIcon,
-  SunIcon,
   XIcon,
 } from "./icons";
 import styles from "./rail.module.css";
@@ -27,9 +22,9 @@ export function RailSkin({
   error,
   onSelect,
   onNewSession,
-  onRefresh,
   onCollapse,
   onOpenSettings,
+  onAddWorkspace,
 }: RailSlotProps) {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -38,7 +33,6 @@ export function RailSkin({
   const searchRef = useRef<HTMLInputElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
   const restoreSearchFocus = useRef(false);
-  const theme = useTheme();
 
   useEffect(() => {
     if (searchOpen) {
@@ -90,42 +84,12 @@ export function RailSkin({
     );
   };
 
-  const footerStatus = loading
-    ? "Connecting…"
-    : `${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}`;
   const empty = !loading && !error && view.active.length === 0 && view.groups.length === 0;
 
   return (
     <aside className={styles.rail}>
       <header className={styles.header}>
-        <span className={styles.brand}>
-          <span className={styles.brandName}>omp</span>
-          <span className={styles.brandTag}>Harness</span>
-        </span>
-        <div className={styles.headerActions}>
-          <NotificationBell />
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={toggleTheme}
-            title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-          >
-            {theme === "dark" ? <SunIcon size={15} /> : <MoonIcon size={15} />}
-          </button>
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={onCollapse}
-            title="Hide session rail"
-            aria-label="Hide session rail"
-          >
-            <SidebarIcon size={15} />
-          </button>
-        </div>
-      </header>
-
-      <div className={styles.listHeader}>
+        <span className={styles.brandName}>omp</span>
         {searchOpen ? (
           <div className={styles.searchWrap}>
             <span className={styles.searchIcon}>
@@ -153,43 +117,52 @@ export function RailSkin({
               <XIcon size={13} />
             </button>
           </div>
-        ) : (
-          <>
-            <span className={styles.listLabel}>Workspaces</span>
-            <div className={styles.listActions}>
-              <button
-                ref={searchToggleRef}
-                type="button"
-                className={styles.iconButton}
-                onClick={() => setSearchOpen(true)}
-                title="Search sessions"
-                aria-label="Search sessions"
-              >
-                <SearchIcon size={15} />
-              </button>
-              <button
-                type="button"
-                className={runningOnly ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton}
-                onClick={() => setRunningOnly((value) => !value)}
-                title={runningOnly ? "Show all sessions" : "Show running sessions only"}
-                aria-label={runningOnly ? "Show all sessions" : "Show running sessions only"}
-                aria-pressed={runningOnly}
-              >
-                <FilterIcon size={15} />
-              </button>
-              <button
-                type="button"
-                className={styles.iconButton}
-                onClick={onRefresh}
-                title="Refresh sessions"
-                aria-label="Refresh sessions"
-              >
-                <RefreshIcon size={15} />
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+        ) : null}
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={onAddWorkspace}
+            title="Add workspace folder"
+            aria-label="Add workspace folder"
+          >
+            <FolderIcon size={15} />
+          </button>
+          {searchOpen ? null : (
+            <button
+              ref={searchToggleRef}
+              type="button"
+              className={styles.iconButton}
+              onClick={() => setSearchOpen(true)}
+              title="Search sessions"
+              aria-label="Search sessions"
+            >
+              <SearchIcon size={15} />
+            </button>
+          )}
+          {searchOpen ? null : (
+            <button
+              type="button"
+              className={runningOnly ? `${styles.iconButton} ${styles.iconButtonActive}` : styles.iconButton}
+              onClick={() => setRunningOnly((value) => !value)}
+              title={runningOnly ? "Show all sessions" : "Show running sessions only"}
+              aria-label={runningOnly ? "Show all sessions" : "Show running sessions only"}
+              aria-pressed={runningOnly}
+            >
+              <FilterIcon size={15} />
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={onCollapse}
+            title="Hide session rail"
+            aria-label="Hide session rail"
+          >
+            <SidebarIcon size={15} />
+          </button>
+        </div>
+      </header>
 
       <div className={styles.scroll}>
         {error ? <p className={styles.error}>{error}</p> : null}
@@ -263,7 +236,6 @@ export function RailSkin({
           <SettingsIcon size={15} />
           <span>Settings</span>
         </button>
-        <span className={styles.footerStatus}>{footerStatus}</span>
       </footer>
     </aside>
   );

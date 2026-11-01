@@ -216,6 +216,14 @@ export async function fetchProjects(): Promise<ProjectSummary[]> {
   return data.projects;
 }
 
+/** Register a directory as a workspace and authorize it as a file root. */
+export async function registerProject(cwd: string): Promise<void> {
+  const { error, response } = await api.POST("/api/workspace/projects", {
+    body: { cwd },
+  });
+  if (error) throw new Error(errorMessage(error, response.status));
+}
+
 export async function fetchGitStatus(cwd: string): Promise<GitStatus> {
   const { data, error, response } = await api.GET("/api/workspace/git/status", {
     params: { query: { cwd } },
