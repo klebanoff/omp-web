@@ -91,7 +91,14 @@ day-to-day repository rules.
   VS Code ships only Monaco as a reusable library; its workbench panels are
   not embeddable. DSH is a visual reference, not a source of components.
 - Styles: design tokens in `src/styles/tokens.css` + CSS Modules. Keyboard-first,
-  dense dark layout, no modal wizards.
+  dense layout; light is the default theme and dark is its equal — neither is
+  primary, and both define the same token names. No modal wizards.
+- Tokens: `tokens.css` is two layers — a theme-independent language (type
+  scale, 4px spacing, radii, motion) and one complete palette per theme. A
+  component module declares local variables and consumes tokens; it never
+  invents a global size, radius or colour. A skin may override token values on
+  its own root, which is how it gets a different visual language without
+  touching the other slots.
 - Layout state is client-only: `omp.layout.v1` for global widths/flags and
   `omp.workbench.v1.<sessionId>` for tabs, expanded directories, view and
   scroll. Server snapshots stay the authority for session content.
