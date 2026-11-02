@@ -5,6 +5,8 @@ export interface RailSlotProps {
   projects: ProjectSummary[];
   selected: string | null;
   running: ReadonlySet<string>;
+  /** Days of silence after which a conversation folds into its group's `Older` rows; `0` = never. */
+  hideInactiveAfterDays: number;
   loading: boolean;
   error: string | null;
   onSelect: (sessionId: string) => void;

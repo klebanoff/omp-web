@@ -3,6 +3,8 @@ import { pickBrowserFolder } from "@/features/rail/pick-workspace-folder";
 import { registerProject } from "@/api/workspace";
 import { useProjects } from "@/features/projects/use-projects";
 import { useSessions } from "@/features/sessions/use-sessions";
+import { useWebSettings } from "@/features/system/use-system-config";
+import { DEFAULT_INACTIVE_SESSION_DAYS } from "@/api/system-config";
 import { getLayout, updateLayout } from "@/layout/layout-store";
 import { ResizeHandle } from "@/layout/ResizeHandle";
 import { useLayoutField } from "@/layout/use-layout";
@@ -36,6 +38,7 @@ export function RailColumn({
   const width = useLayoutField("railWidth");
   const sessions = useSessions();
   const projects = useProjects();
+  const webSettings = useWebSettings();
   const [addError, setAddError] = useState<string | null>(null);
   const adding = useRef(false);
   const fallbackRunning = sessions.data?.runningSessionIds ?? EMPTY_RUNNING;
@@ -73,6 +76,7 @@ export function RailColumn({
           projects={projects.data ?? []}
           selected={selected}
           running={running}
+          hideInactiveAfterDays={webSettings.data?.hideInactiveSessionsAfterDays ?? DEFAULT_INACTIVE_SESSION_DAYS}
           loading={sessions.isLoading}
           error={addError ?? (sessions.isError ? sessions.error.message : null)}
           onSelect={onSelect}

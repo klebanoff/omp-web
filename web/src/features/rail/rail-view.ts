@@ -1,7 +1,8 @@
 /**
  * Pure derivation for a session rail: project grouping, recency order, search
- * matching, the running filter, and relative time labels. No React and no
- * skin imports, so any rail presentation can consume the same view.
+ * matching, the running filter, the inactivity split into a group's `older`
+ * rows, and relative time labels. No React and no skin imports, so any rail
+ * presentation can consume the same view.
  */
 
 import { basename, comparablePath } from "@/api/paths";
