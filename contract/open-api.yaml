@@ -8023,11 +8023,16 @@ paths:
                       - enabled
                       - servers
                     additionalProperties: false
+                  hideInactiveSessionsAfterDays:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
                 required:
                   - autoResumeSessions
                   - agentToolsEnabled
                   - agentEnv
                   - lsp
+                  - hideInactiveSessionsAfterDays
                 additionalProperties: {}
         default:
           description: Error
@@ -8091,6 +8096,10 @@ paths:
                   required:
                     - enabled
                     - servers
+                hideInactiveSessionsAfterDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 9007199254740991
               additionalProperties: {}
       responses:
         "200":
@@ -8148,11 +8157,16 @@ paths:
                       - enabled
                       - servers
                     additionalProperties: false
+                  hideInactiveSessionsAfterDays:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
                 required:
                   - autoResumeSessions
                   - agentToolsEnabled
                   - agentEnv
                   - lsp
+                  - hideInactiveSessionsAfterDays
                 additionalProperties: {}
         "400":
           description: Bad Request
