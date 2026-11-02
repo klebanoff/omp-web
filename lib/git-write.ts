@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { getGitStatus } from "./git-changes";
 import type { GitStatusResponse } from "./git-types";
 import { createChildProcessEnvironment } from "./project-command-env";
@@ -100,7 +101,31 @@ async function runGit(cwd: string, args: string[], input?: string): Promise<stri
 }
 
 async function repositoryRoot(cwd: string): Promise<string> {
-  return (await runGit(cwd, ["rev-parse", "--show-toplevel"])).trim();
+  return canonicalPath((await runGit(cwd, ["rev-parse", "--show-toplevel"])).trim());
+}
+
+/**
+ * A path the filesystem considers canonical. Windows offers the same directory
+ * under a short (8.3) name and a long name — `os.tmpdir()` hands out
+ * `C:\Users\UB8EA~1.DUL\...` while git prints `C:/Users/u.dulin/...` — and a
+ * symlinked workspace does the same. Comparing raw strings then declares a file
+ * "outside the repository". A missing leaf (a file staged before creation)
+ * falls back to its canonical parent plus the original name.
+ */
+function canonicalPath(path: string): string {
+  // `realpathSync` keeps Windows short (8.3) names; the native variant expands
+  // them to the long form, which is what git prints.
+  const realpath = realpathSync.native ?? realpathSync;
+  try {
+    return realpath(path);
+  } catch {
+    // Not on disk yet: canonicalize the containing directory instead.
+  }
+  try {
+    return join(realpath(dirname(path)), basename(path));
+  } catch {
+    return resolve(path);
+  }
 }
 
 /** Repo-relative POSIX paths; absolute paths and `..` escapes are rejected. */
@@ -109,12 +134,13 @@ function repositoryPaths(root: string, cwd: string, paths: readonly string[] | u
   if (values.length === 0) {
     throw new GitWriteError("paths or all is required", "paths_required", 400);
   }
+  const canonicalRoot = canonicalPath(root);
   return values.map((value) => {
     if (!value || value.includes("\0") || isAbsolute(value)) {
       throw new GitWriteError(`Invalid repository path: ${value}`, "invalid_path", 400);
     }
-    const absolute = resolve(cwd, value);
-    const rel = relative(root, absolute);
+    const absolute = canonicalPath(resolve(cwd, value));
+    const rel = relative(canonicalRoot, absolute);
     if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       throw new GitWriteError(`Path is outside the repository: ${value}`, "path_outside_repository", 400);
     }
