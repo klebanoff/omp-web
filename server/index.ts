@@ -8,6 +8,7 @@ import { crossOriginRejection } from "./cross-origin.ts";
 import { isRecord } from "../core/guards.ts";
 import { createTerminal, TerminalError, type TerminalSession } from "../lib/terminal.ts";
 import { serveStatic } from "./static.ts";
+import { routeModules } from "./routes-manifest.ts";
 
 /**
  * Minimal Bun.serve server for the omp API.
@@ -21,6 +22,7 @@ import { serveStatic } from "./static.ts";
 export interface Route {
   /** Path segments relative to the routes root, e.g. ["files", "[...path]"]. */
   segments: string[];
+  /** File path for `collectRoutes`, manifest key for `manifestRoutes`. */
   file: string;
   /** From `routeScore`. Higher wins when several patterns match. */
   score: number;
@@ -37,6 +39,25 @@ export function routeScore(segments: readonly string[]): number {
   }, 0);
 }
 
+/**
+ * Routes the server actually serves: the generated manifest, never the
+ * filesystem. A packaged build has no route sources on disk, so the imports
+ * have to be static for the bundler to carry them.
+ */
+export function manifestRoutes(): Route[] {
+  return Object.keys(routeModules).map((key) => {
+    const segments = key.split("/").slice(0, -1);
+    return { segments, file: key, score: routeScore(segments) };
+  });
+}
+
+function loadManifestRoute(key: string): Promise<Record<string, unknown>> {
+  const load = routeModules[key];
+  if (!load) return Promise.reject(new Error(`Unknown route module: ${key}`));
+  return load();
+}
+
+/** Filesystem scan used by tooling (`contract`, `routes:manifest`) and tests. */
 export function collectRoutes(dir = routesRoot): Route[] {
   const routes: Route[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -184,8 +205,11 @@ export async function dispatch(
 /** Load every route module before listen. The loader caches the module, so the
  * first request does not pay the load cost. A failed module rejects and
  * main() does not listen. */
-async function preloadRouteModules(routes: Route[]): Promise<void> {
-  await Promise.all(routes.map((route) => loadRouteModule(route.file)));
+async function preloadRouteModules(
+  routes: Route[],
+  loadModule: RouteModuleLoader = loadRouteModule,
+): Promise<void> {
+  await Promise.all(routes.map((route) => loadModule(route.file)));
 }
 
 export const TERMINAL_PATH = "/api/workspace/terminal";
@@ -342,8 +366,8 @@ async function serverOptions(options: StartServerOptions): Promise<{ options: Se
   const port = options.port ?? Number(process.env.OMP_WEB_PORT || process.env.PORT || 30178);
   const staticRoot =
     options.staticRoot ?? process.env.OMP_WEB_STATIC_DIR ?? fileURLToPath(new URL("../web/dist", import.meta.url));
-  const routes = collectRoutes();
-  await preloadRouteModules(routes);
+  const routes = manifestRoutes();
+  await preloadRouteModules(routes, loadManifestRoute);
   return {
     routes: routes.length,
     options: {
@@ -375,7 +399,7 @@ async function serverOptions(options: StartServerOptions): Promise<{ options: Se
         const asset = await serveStatic(staticRoot, request);
         if (asset) return asset;
       }
-      return dispatch(request, routes);
+      return dispatch(request, routes, loadManifestRoute);
     },
     websocket: {
       maxPayloadLength: 1024 * 1024,

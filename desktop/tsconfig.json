@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "..",
+    "paths": {
+      "@/*": ["./*"],
+      "electrobun": [".hutch/devkit/api/sdks/main/index.ts"],
+      "electrobun/main": [".hutch/devkit/api/sdks/main/index.ts"]
+    }
+  },
+  "include": ["main.ts", "globals.d.ts", "../electrobun.config.ts"]
+}

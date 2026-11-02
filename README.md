@@ -11,6 +11,7 @@ only; anything outside it can still import the core directly.
 ## Layout
 
 ```
+desktop/ Electrobun shell: starts the same server, opens a native window
 core/   pure TypeScript: no React, DOM, fetch, storage, timers or Node imports
         session state machine, transcripts, drafts, search, notifications,
         side questions, models, todos, subagents, host tools, session files
@@ -41,6 +42,34 @@ browser. On Windows, double-click `omp-web.cmd` (it runs the same command); for
 a desktop shortcut, point it at that file. Set `OMP_WEB_OPEN=0` to skip opening
 the browser and `OMP_WEB_PORT` to change the port.
 
+### Desktop app (Electrobun)
+
+```
+bun run desktop:dev       # build + launch the desktop window
+bun run desktop:build     # installed-app artifacts in artifacts/ and build/
+```
+
+Both go through Electrobun 2, which downloads its Hutch toolchain on first use
+into `~/.hutch` and projects the SDK into `.hutch/` (gitignored). The shell
+(`desktop/main.ts`) starts the same Bun server on `OMP_WEB_PORT` (30178) and
+opens a native webview at its URL: one origin, so HTTP, SSE and the terminal
+WebSocket behave exactly as in the browser, and `bun run app` keeps working
+unchanged. The build is host-only (Windows here; mac/linux builds run on their
+own runners) and unsigned.
+
+`desktop:build` produces an installer for the current OS: `artifacts/` holds
+the platform artifact plus update metadata, `build/<channel>-<os>-<arch>/` the
+extracted app. It rebuilds `web/dist` for release builds, stages the native
+modules, bundles `desktop/main.ts`, and copies the SPA to
+`Resources/app/web`. `bun run desktop:typecheck` checks the shell; it needs
+`.hutch/` (run `bunx electrobun prepare` first).
+
+Native modules ship as packages, not as bundle content: `node-pty` and `sharp`
+are `external`, and `scripts/desktop-stage-native.ts` flattens them (plus
+`@img/*`, `detect-libc`, `semver`) into `.tmp/desktop-native/node_modules`,
+copied to `Resources/app/node_modules`. Terminal and image previews therefore
+work in the packaged app.
+
 The same server serves the SPA and the API; no second process is needed.
 `bun start` expects `web/dist` to exist (`bun run web:build`), and
 `OMP_WEB_STATIC_DIR` overrides the directory. Unknown client routes return
@@ -61,6 +90,12 @@ reverse proxy if it is exposed. The generated contract is
 `contract/open-api.yaml`; live-event and terminal frames are described in
 `contract/events.md`.
 
+Routes are served from `server/routes-manifest.ts`, a committed, generated table
+of lazy imports for every `server/routes/**/route.ts`. Add a route file and run
+`bun run routes:manifest`: the packaged desktop build has no route sources on
+disk, so the runtime table cannot scan for them. `bun run routes:check` (CI) and
+`server/routes-manifest.test.mjs` fail when it goes stale.
+
 ## Development
 
 ```
@@ -68,6 +103,8 @@ bun run test        # bun:test for core/lib/server, no build step
 bun run typecheck   # tsc --noEmit
 bun run contract    # regenerate contract/open-api.yaml from route contracts
 bun run contract:check
+bun run routes:manifest  # regenerate server/routes-manifest.ts (route table)
+bun run routes:check
 
 bun run dev         # API under --hot + Vite in one process
 bun run dev:api     # API only, for a separately started Vite
