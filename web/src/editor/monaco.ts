@@ -1,4 +1,5 @@
 import * as monaco from "monaco-editor";
+import { fontsReady, monoFontFamily } from "@/styles/mono-font";
 // Relative worker paths: Monaco's exports map does not expose `?worker`
 // subpaths, and Vite resolves these through the workspace dependency.
 import "monaco-editor/min/vs/editor/editor.main.css";
@@ -23,6 +24,16 @@ interface MonacoEnvironment {
 };
 
 let themeReady = false;
+
+/** Monaco's default stack is Consolas-first; the console ships its own mono font. */
+export function monacoFontFamily(node?: HTMLElement | null): string {
+  return monoFontFamily(node);
+}
+
+/** Canvas-measured text must be re-measured when the bundled font finishes loading. */
+export function remeasureWhenFontsReady(): void {
+  void fontsReady().then(() => monaco.editor.remeasureFonts());
+}
 
 export function monacoTheme(mode: "light" | "dark"): "omp-light" | "omp-dark" {
   return mode === "dark" ? "omp-dark" : "omp-light";

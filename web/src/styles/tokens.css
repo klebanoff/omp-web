@@ -9,8 +9,9 @@
 
   --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", "Segoe UI Mono",
-    Menlo, Consolas, "Liberation Mono", monospace;
+  --font-mono: "Hack Nerd Font Mono", ui-monospace, SFMono-Regular,
+    "Cascadia Code", "Segoe UI Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
 
   --bg: #f6f7f8;
   --surface: #ffffff;

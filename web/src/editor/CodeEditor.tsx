@@ -4,7 +4,7 @@ import type { LspDiagnostic } from "@/api/lsp";
 import type { InlineSelection } from "@/features/workbench/inline-edit";
 import { useTheme } from "@/state/theme";
 import { markersFromDiagnostics } from "./lsp-markers";
-import { monacoTheme, setupMonaco } from "./monaco";
+import { monacoFontFamily, monacoTheme, remeasureWhenFontsReady, setupMonaco } from "./monaco";
 import styles from "./editor.module.css";
 
 interface CodeEditorProps {
@@ -64,11 +64,13 @@ export function CodeEditor({
       scrollBeyondLastLine: false,
       fontSize: 12,
       lineHeight: 18,
+      fontFamily: monacoFontFamily(node),
       renderLineHighlight: "all",
       padding: { top: 8 },
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
     });
     editorRef.current = editor;
+    remeasureWhenFontsReady();
     if (initialScrollTop) editor.setScrollTop(initialScrollTop);
     const scrollSubscription = editor.onDidScrollChange((event) => scrollRef.current?.(event.scrollTop));
     const changeSubscription = editor.onDidChangeModelContent(() => {

@@ -70,6 +70,12 @@ are `external`, and `scripts/desktop-stage-native.ts` flattens them (plus
 copied to `Resources/app/node_modules`. Terminal and image previews therefore
 work in the packaged app.
 
+The UI ships its own mono font: `Hack Nerd Font Mono` (MIT, see
+`web/src/assets/fonts/LICENSE.md`) is bundled as woff2 under `web/dist/assets`,
+so terminal glyphs — powerline, tree, git — render in the browser and in the
+desktop webview without a system font. It backs `--font-mono`, which the
+terminal (xterm.js) and the editor (Monaco) measure against directly.
+
 The same server serves the SPA and the API; no second process is needed.
 `bun start` expects `web/dist` to exist (`bun run web:build`), and
 `OMP_WEB_STATIC_DIR` overrides the directory. Unknown client routes return
