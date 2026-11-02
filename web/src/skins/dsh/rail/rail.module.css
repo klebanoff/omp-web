@@ -292,6 +292,62 @@
   padding: 1px 0 4px 10px;
 }
 
+/* Quiet conversations stay reachable one click down, not gone. */
+.older {
+  min-width: 0;
+}
+
+.olderRow {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 0 9px 0 20px;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.olderRow:hover,
+.olderRow:focus-visible {
+  background: var(--rail-hover);
+}
+
+.olderChevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--muted);
+  opacity: 0.7;
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+
+.olderChevronOpen {
+  transform: none;
+}
+
+.olderLabel {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.olderCount {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
 .session {
   display: flex;
   width: 100%;

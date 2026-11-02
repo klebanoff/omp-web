@@ -7308,6 +7308,7 @@ export interface paths {
                                     };
                                 }[];
                             };
+                            hideInactiveSessionsAfterDays: number;
                         } & {
                             [key: string]: unknown;
                         };
@@ -7352,6 +7353,7 @@ export interface paths {
                                 };
                             }[];
                         };
+                        hideInactiveSessionsAfterDays?: number;
                     } & {
                         [key: string]: unknown;
                     };
@@ -7382,6 +7384,7 @@ export interface paths {
                                     };
                                 }[];
                             };
+                            hideInactiveSessionsAfterDays: number;
                         } & {
                             [key: string]: unknown;
                         };
