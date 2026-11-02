@@ -97,13 +97,6 @@ day-to-day repository rules.
   scroll. Server snapshots stay the authority for session content.
 - Monaco and xterm are lazy-loaded; the chat shell must not pay their bundle
   cost on first paint.
-- Fonts are self-hosted, never fetched from a CDN: the desktop build runs in a
-  system webview that may have no terminal font at all. `Hack Nerd Font Mono`
-  (`web/src/assets/fonts/`, MIT, license committed next to the faces) backs
-  `--font-mono`, and canvas-rendered text reads that token through
-  `web/src/styles/mono-font.ts` instead of hard-coding a stack. A bundled face
-  must stay wired: `web/src/styles/fonts.test.ts` fails if a face, its
-  `@font-face` or the token gets out of sync.
 - Tests: Vitest + Testing Library; Playwright for flows when a flow exists.
   `bun run web:typecheck`, `bun run web:test`, `bun run web:build` must pass.
 - Tests: `core/*.test.mjs`, `lib/**/*.test.mjs` and `server/*.test.mjs` using

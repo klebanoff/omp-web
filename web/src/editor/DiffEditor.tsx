@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useTheme } from "@/state/theme";
-import { monacoFontFamily, monacoTheme, remeasureWhenFontsReady, setupMonaco } from "./monaco";
+import { monacoTheme, setupMonaco } from "./monaco";
 import styles from "./editor.module.css";
 
 interface DiffEditorProps {
@@ -33,13 +33,11 @@ export function DiffEditor({ original, modified, language }: DiffEditorProps) {
       scrollBeyondLastLine: false,
       fontSize: 12,
       lineHeight: 18,
-      fontFamily: monacoFontFamily(node),
       diffWordWrap: "off",
       diffAlgorithm: "legacy",
       scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
     });
     editor.setModel({ original: originalModel, modified: modifiedModel });
-    remeasureWhenFontsReady();
     return () => {
       editor.dispose();
       originalModel.dispose();

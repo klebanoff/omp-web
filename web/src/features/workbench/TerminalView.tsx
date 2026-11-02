@@ -4,7 +4,6 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { parseTerminalFrame, terminalSocketUrl } from "./terminal-protocol";
 import { useTheme } from "@/state/theme";
-import { fontsReady, monoFontFamily } from "@/styles/mono-font";
 import styles from "./terminal.module.css";
 
 interface TerminalViewProps {
@@ -26,7 +25,7 @@ function terminalStyle(node: HTMLElement): { fontFamily: string; theme: Record<s
     return value.length > 0 ? value : fallback;
   };
   return {
-    fontFamily: monoFontFamily(node),
+    fontFamily: token("--font-mono", "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"),
     theme: {
       background: token("--bg", "#111214"),
       foreground: token("--fg", "#e6e7ea"),
@@ -84,12 +83,6 @@ export function TerminalView({ cwd, active }: TerminalViewProps) {
       }
     };
     refit();
-    // xterm measures its cell against the font present at `open()`. The bundled
-    // Nerd Font arrives later, so the grid must be re-measured once it is in.
-    void fontsReady().then(() => {
-      if (disposed) return;
-      refit();
-    });
 
     const send = (message: unknown) => {
       const socket = socketRef.current;
