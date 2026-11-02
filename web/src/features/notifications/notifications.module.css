@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 3px 6px;
   color: var(--muted);
@@ -27,11 +27,11 @@
   top: -3px;
   right: -4px;
   min-width: 14px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: var(--accent);
   padding: 0 3px;
   color: var(--bg);
-  font-size: 9px;
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 14px;
   text-align: center;
@@ -48,7 +48,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: var(--shadow-2);
 }
@@ -58,13 +58,13 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
 }
 
 .panelTitle {
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
 }
@@ -72,16 +72,16 @@
 .panelActions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .action {
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 2px 6px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
@@ -105,7 +105,7 @@
   margin: 0;
   padding: 14px 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   text-align: center;
 }
 
@@ -145,7 +145,7 @@
 
 .entryTitle {
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -154,14 +154,14 @@
 .entryBody {
   overflow: hidden;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .entryTime {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 
 .removeButton {
@@ -170,7 +170,7 @@
   background: transparent;
   padding: 4px 8px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-base);
   line-height: 1;
   cursor: pointer;
 }
@@ -195,7 +195,7 @@
 .sectionTitle {
   margin-bottom: 6px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -211,7 +211,7 @@
   align-items: center;
   gap: 6px;
   color: var(--fg);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .settingRow input[type="checkbox"] {
@@ -236,12 +236,12 @@
   min-width: 0;
   flex: 1;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   padding: 2px 4px;
   color: var(--fg);
   font: inherit;
-  font-size: 10px;
+  font-size: var(--text-xs);
   outline: none;
 }
 
@@ -252,23 +252,23 @@
 .pushStatus {
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .error {
   margin: 2px 0 0;
   color: var(--error);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .testButton {
   align-self: flex-start;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   padding: 3px 8px;
   color: var(--fg);
-  font-size: 10px;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
@@ -289,7 +289,7 @@
   display: flex;
   width: min(360px, calc(100vw - 32px));
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .toast {
@@ -297,7 +297,7 @@
   align-items: stretch;
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   box-shadow: var(--shadow-2);
 }
@@ -322,7 +322,7 @@
 
 .toastTitle {
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -330,7 +330,7 @@
 
 .toastText {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .toastClose {
@@ -338,7 +338,7 @@
   background: transparent;
   padding: 4px 8px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-base);
   line-height: 1;
   cursor: pointer;
 }

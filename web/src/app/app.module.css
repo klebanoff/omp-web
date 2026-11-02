@@ -12,13 +12,13 @@
   top: 8px;
   z-index: 20;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   padding: 3px 8px;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .showRail {

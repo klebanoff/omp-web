@@ -1,46 +1,136 @@
 /*
- * Light is the default theme; dark is selected through `data-theme="dark"` on
- * <html>. Components only consume these variables so a theme can change the
- * palette (and, later, the layout) without touching feature CSS.
+ * Design tokens in two layers.
+ *
+ * 1. Language — typography, spacing, radii, motion. Theme-independent: it is
+ *    the visual language (dense, Cursor/DSH-like), not a palette.
+ * 2. Palette — colours, one block per theme. Both themes are complete and
+ *    equal: `light` is the default via `:root`, `dark` overrides the same
+ *    names under `[data-theme="dark"]`. No token exists in one theme only, so a
+ *    component never needs to know which theme it renders in.
+ *
+ * Components consume variables only. A hard-coded size, radius or colour in a
+ * module is a bug: it is what makes two panels disagree by half a pixel.
  */
 
 :root {
   color-scheme: light;
 
+  /* Language: typeface */
   --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "Cascadia Code", "Segoe UI Mono",
     Menlo, Consolas, "Liberation Mono", monospace;
 
+  /* Language: type scale — six sizes, no half steps */
+  --text-xs: 11px; /* meta, counts, kbd, chrome labels */
+  --text-sm: 12px; /* controls, tree rows, secondary UI */
+  --text-base: 13px; /* default UI text */
+  --text-md: 14px; /* message prose, inputs */
+  --text-lg: 16px; /* panel titles */
+  --text-xl: 20px; /* page titles */
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.45;
+  --leading-prose: 1.6;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-strong: 600;
+
+  /* Language: spacing — a 4px grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Language: radii — small and calm */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  /* Language: motion — two durations, one easing */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Palette (light) */
   --bg: #f6f7f8;
   --surface: #ffffff;
   --surface-2: #eef0f3;
   --border: #e0e2e6;
+  --border-strong: #c8ccd3;
   --fg: #1f2328;
-  --muted: #6a737d;
+  --fg-muted: #6a737d;
+  --fg-subtle: #8b929c;
   --accent: #2f6feb;
+  --accent-fg: #ffffff;
+  --accent-soft: #e7effd;
+  --hover: rgb(31 35 40 / 6%);
+  --selected: rgb(47 111 235 / 12%);
+  --focus-ring: rgb(47 111 235 / 45%);
+  --overlay: rgb(31 35 40 / 40%);
+  --code-bg: #f0f2f5;
+  --code-fg: #1f2328;
+  --tool-bg: #f8f9fb;
+  --tool-border: #e3e6ea;
+  --thinking-fg: #7b8794;
+  --diff-add-bg: #e6ffec;
+  --diff-add-fg: #1a7f37;
+  --diff-del-bg: #ffebe9;
+  --diff-del-fg: #cf222e;
   --success: #1a7f37;
+  --success-soft: #e6ffec;
   --warning: #9a6700;
+  --warning-soft: #fff8e5;
   --error: #cf222e;
+  --error-soft: #ffebe9;
 
   --shadow-1: 0 6px 18px rgb(31 35 40 / 12%);
   --shadow-2: 0 10px 30px rgb(31 35 40 / 16%);
   --shadow-color: rgb(31 35 40 / 18%);
+
+  /* Aliases kept for modules that predate the semantic names. Resolve per
+   * theme, so they need to exist only once. */
+  --muted: var(--fg-muted);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
+  /* Palette (dark) — every name from the light block is defined again */
   --bg: #111214;
   --surface: #17181b;
   --surface-2: #1e2024;
   --border: #2c2f36;
+  --border-strong: #3d4149;
   --fg: #e6e7ea;
-  --muted: #8b909a;
+  --fg-muted: #8b909a;
+  --fg-subtle: #6b7280;
   --accent: #6ea8fe;
+  --accent-fg: #0b1220;
+  --accent-soft: #1c2739;
+  --hover: rgb(230 231 234 / 7%);
+  --selected: rgb(110 168 254 / 18%);
+  --focus-ring: rgb(110 168 254 / 55%);
+  --overlay: rgb(0 0 0 / 55%);
+  --code-bg: #1b1d21;
+  --code-fg: #e6e7ea;
+  --tool-bg: #1a1c20;
+  --tool-border: #2a2d33;
+  --thinking-fg: #8b909a;
+  --diff-add-bg: #12261a;
+  --diff-add-fg: #4ac26b;
+  --diff-del-bg: #2a1518;
+  --diff-del-fg: #f85149;
   --success: #4ac26b;
+  --success-soft: #12261a;
   --warning: #d29922;
+  --warning-soft: #2a2312;
   --error: #f85149;
+  --error-soft: #2a1518;
 
   --shadow-1: 0 6px 18px rgb(0 0 0 / 35%);
   --shadow-2: 0 10px 30px rgb(0 0 0 / 45%);
@@ -62,8 +152,8 @@ body,
 
 body {
   font-family: var(--font-ui);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -72,6 +162,7 @@ pre,
 kbd,
 samp {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 button,

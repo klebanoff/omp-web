@@ -11,11 +11,11 @@
   display: flex;
   min-height: 26px;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .clean {
@@ -56,13 +56,13 @@
 
 .saveButton {
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 1px 8px;
   color: var(--fg);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
@@ -79,11 +79,11 @@
 .conflict {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--warning) 12%, var(--surface));
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .conflictText {
@@ -93,13 +93,13 @@
 
 .conflictAction {
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 1px 6px;
   color: var(--fg);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .conflictAction:hover {
@@ -117,11 +117,11 @@
 .status {
   padding: 14px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .statusError {
   padding: 14px;
   color: var(--error);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }

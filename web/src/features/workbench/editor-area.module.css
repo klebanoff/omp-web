@@ -18,18 +18,18 @@
 .status {
   padding: 14px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .empty {
   display: grid;
   flex: 1;
   place-content: center;
-  gap: 4px;
+  gap: var(--space-1);
   text-align: center;
 }
 
 .muted {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }

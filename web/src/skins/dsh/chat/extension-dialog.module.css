@@ -1,9 +1,9 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   padding: 10px 12px;
 }
@@ -11,7 +11,7 @@
 .header {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .title {
@@ -20,7 +20,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--fg);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -29,10 +29,10 @@
 .method {
   flex: 0 0 auto;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 1px 6px;
   color: var(--accent);
-  font-size: 9px;
+  font-size: var(--text-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -40,13 +40,13 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .message {
   margin: 0;
   color: var(--fg);
-  font-size: 11px;
+  font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -61,7 +61,7 @@
   display: flex;
   align-items: flex-start;
   gap: 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 3px 5px;
   cursor: pointer;
 }
@@ -86,23 +86,23 @@
 
 .optionLabel {
   color: var(--fg);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .recommended {
   align-self: flex-start;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--success) 18%, transparent);
   padding: 0 5px;
   color: var(--success);
-  font-size: 9px;
+  font-size: var(--text-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .optionDescription {
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .preview {
@@ -113,14 +113,14 @@
   padding: 2px 6px;
   color: var(--muted);
   font: inherit;
-  font-size: 10px;
+  font-size: var(--text-xs);
   white-space: pre-wrap;
 }
 
 .questions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .question {
@@ -142,25 +142,25 @@
 
 .questionHeader {
   color: var(--accent);
-  font-size: 9px;
+  font-size: var(--text-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .questionText {
   color: var(--fg);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .input {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   padding: 4px 7px;
   color: var(--fg);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .input:focus {
@@ -180,7 +180,7 @@
 .error {
   margin: 0;
   color: var(--error);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .footer {
@@ -193,10 +193,10 @@
 .cancel,
 .submit {
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 3px 10px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 

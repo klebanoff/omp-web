@@ -4,7 +4,7 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .pill {
@@ -14,12 +14,12 @@
   min-width: 0;
   align-items: center;
   gap: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--fg) 5%, transparent);
   padding: 0 22px 0 9px;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: background-color var(--motion-fast) var(--ease-out);
 }
 
 .pill:hover {
@@ -46,7 +46,7 @@
   padding: 0;
   color: var(--fg);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 1;
   outline: none;
   cursor: pointer;

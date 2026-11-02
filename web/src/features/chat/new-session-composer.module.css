@@ -10,13 +10,13 @@
   min-width: 0;
   flex-direction: column;
   gap: 2px;
-  border-radius: 22px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   padding: 12px 14px 10px;
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent),
     0 10px 30px -14px var(--shadow-color);
-  transition: box-shadow 140ms ease;
+  transition: box-shadow var(--motion-fast) var(--ease-out);
 }
 
 .composer:focus-within {
@@ -35,7 +35,7 @@
   padding: 2px 2px 4px;
   color: var(--fg);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--text-base);
   line-height: 1.55;
   outline: none;
   overflow-y: hidden;
@@ -55,7 +55,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 2px 0 0;
 }
 
@@ -64,7 +64,7 @@
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .actions {
@@ -84,10 +84,10 @@
   justify-content: center;
   flex: 0 0 auto;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   padding: 0;
   cursor: pointer;
-  transition: background-color 120ms ease, opacity 120ms ease;
+  transition: background-color var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out);
 }
 
 .send {
@@ -115,12 +115,12 @@
   align-items: center;
   gap: 5px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0 11px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-sm);
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease;
+  transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 
 .ghost {
@@ -164,10 +164,10 @@
   min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
   padding: 8px 8px 0;
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: var(--text-xs);
   line-height: 1.4;
 }
 
@@ -182,7 +182,7 @@
 .stat {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   white-space: nowrap;
 }
 
@@ -201,7 +201,7 @@
 .error {
   margin: 6px 8px 0;
   color: var(--error);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .composerDrop {
