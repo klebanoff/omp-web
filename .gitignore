@@ -28,6 +28,12 @@ Desktop.ini
 *.swo
 *~
 
+# desktop (Electrobun)
+/.hutch/
+/.cottontail-tmp/
+/artifacts/
+/hutch.lock
+
 # local tooling
 .tmp/
 tmp/

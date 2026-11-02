@@ -17,6 +17,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run contract:check
+      - run: bun run routes:check
       - run: bun run web:schema:check
       - run: bun run web:typecheck
       - run: bun run web:test

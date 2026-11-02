@@ -18,11 +18,15 @@ day-to-day repository rules.
   STT, PTY terminals, and the project file watcher. The live-session authority
   (`session-authority.ts`) owns one `core/machine.ts` per omp wrapper. `lib/`
   and `server/` may import `core/`; `core/` never imports them.
-- `server/` — `Bun.serve` server + filesystem router. `server/routes/**` export
-  a `contract` next to their handlers (request schemas validate in
-  `dispatch`); they use `json()` / `readJson()` from `server/http.ts` and
-  native `Request` / `Response`. `server/index.ts` runs under Bun, loads route
-  TypeScript directly, and serves the terminal WebSocket.
+- `server/` — `Bun.serve` server over a generated route table.
+  `server/routes/**` export a `contract` next to their handlers (request
+  schemas validate in `dispatch`); they use `json()` / `readJson()` from
+  `server/http.ts` and native `Request` / `Response`. `server/index.ts` runs
+  under Bun, serves the terminal WebSocket, and takes its routes from
+  `server/routes-manifest.ts` — a committed, generated table of lazy imports
+  (`bun run routes:manifest`, CI runs `routes:check`). A route file must be
+  listed there: the packaged desktop build has no route `.ts` files on disk, so
+  runtime discovery by scanning would only work in the repository.
 - `contract/` — generated `open-api.yaml` (from `bun run contract`) and
   `events.md` for the SSE channels and terminal frames. Never hand-edit the
   generated spec: it is produced from the route contracts and committed with
@@ -30,6 +34,12 @@ day-to-day repository rules.
 - `web/` — the UI (M3). A classic SPA: React 19 + Vite 8 + TypeScript 7
   (strict). HTTP only, types derived from `contract/open-api.yaml`; it must not
   import from `core/`, `lib/` or `server/`.
+- `desktop/` — the Electrobun shell (M4). `desktop/main.ts` is a main process
+  that starts the same server and points a native webview at its URL, so the
+  desktop app is the browser app plus a window: one origin, no second UI.
+  `electrobun.config.ts` describes the bundle, `hutch.config.ts` pins
+  `packageManager: "bun"`. It may import `server/`, `lib/` and `core/`; those
+  never import it.
 
 ## Conventions
 
@@ -43,6 +53,10 @@ day-to-day repository rules.
   artifact is a bug.
 - The server is the authority for session state: clients send intents and
   render snapshots. Raw `omp` frames are a debug channel, not a UI contract.
+- `node-pty` and `sharp` stay optional and dynamically imported in `lib/`. The
+  desktop bundle marks them `external` and ships the packages themselves
+  (`scripts/desktop-stage-native.ts`); nothing may hard-require them at import
+  time or the browser launch would break without them.
 
 ## Web rules (`web/`)
 
@@ -85,7 +99,29 @@ day-to-day repository rules.
   cost on first paint.
 - Tests: Vitest + Testing Library; Playwright for flows when a flow exists.
   `bun run web:typecheck`, `bun run web:test`, `bun run web:build` must pass.
-- Tests: `core/*.test.mjs` and `lib/**/*.test.mjs` using `bun:test` with
-  direct `.ts` imports. Run `bun run test` and `bun run typecheck` after changes;
-  `web/` has its own Vitest suite (`bun run web:test`).
+- Tests: `core/*.test.mjs`, `lib/**/*.test.mjs` and `server/*.test.mjs` using
+  `bun:test` with direct `.ts` imports. Run `bun run test`, `bun run typecheck`,
+  `bun run routes:check` and `bun run contract:check` after changes; `web/` has
+  its own Vitest suite (`bun run web:test`).
 - Commit messages follow `Add ...`, `fix(scope): ...`, `test(scope): ...`.
+
+## Desktop rules (`desktop/`)
+
+- The desktop app is a shell, not a second client: it starts the same
+  `startServer()` and opens the window at `server.url`. Never reimplement an
+  API, a static file server, or a session rule for it.
+- State the app owns outside the server stays client-only (window size, later
+  menus/tray). Session content never moves into the shell.
+- `bun run desktop:dev` and `bun run desktop:build` are the only supported
+  entry points; both go through Electrobun (`electrobun dev` / `build
+  --env=stable`). The build reuses `web/dist`, so the SPA is built, not
+  re-invented.
+- Anything `build.copy` ships must come from the repository: the SPA from
+  `web/dist`, native packages staged into `.tmp/desktop-native`. `.hutch/`,
+  `build/` and `artifacts/` are generated and gitignored.
+- `desktop/tsconfig.json` is separate: `electrobun/*` types come from the
+  projected `.hutch/devkit`, so `bun run typecheck` stays free of Electrobun.
+  Run `bun run desktop:typecheck` after touching `desktop/`.
+- Verify a change by launching the packaged app, not only the browser one: the
+  window, `/api/*`, the SSE stream and the terminal WebSocket must all work
+  from `Resources/app`.
