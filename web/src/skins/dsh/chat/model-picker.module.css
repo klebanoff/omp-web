@@ -15,12 +15,12 @@
   flex: 0 1 auto;
   align-items: center;
   gap: 5px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: transparent;
   padding: 0 21px 0 8px;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease;
+  transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 
 .pill:hover {
@@ -48,7 +48,7 @@
   padding: 0;
   color: inherit;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   line-height: 1;
   text-align: right;
   outline: none;

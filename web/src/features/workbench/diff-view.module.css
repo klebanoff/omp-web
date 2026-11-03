@@ -1,11 +1,11 @@
 .status {
   padding: 14px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .error {
   padding: 14px;
   color: var(--error);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }

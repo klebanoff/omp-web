@@ -1,7 +1,7 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 0;
   padding: 10px 12px;
   color: var(--fg);
@@ -15,7 +15,7 @@
 
 .title {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -25,7 +25,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -43,7 +43,7 @@
   gap: 5px;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   padding: 8px 9px;
 }
@@ -51,7 +51,7 @@
 .sectionTitle {
   margin: 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -70,9 +70,9 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   padding: 2px 4px;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .row:hover {
@@ -88,29 +88,29 @@
 
 .id {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 
 .count {
   color: var(--muted);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 
 .tag {
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0 5px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: var(--text-xs);
 }
 
 .badgeOn,
 .badgeOff {
   margin-left: auto;
   flex: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0 6px;
-  font-size: 8px;
+  font-size: var(--text-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -128,13 +128,13 @@
 .button {
   flex: none;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 0 7px;
   color: var(--accent);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .button:hover:not(:disabled) {
@@ -150,18 +150,18 @@
 .empty {
   margin: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .error {
   margin: 0;
   color: var(--error);
-  font-size: 10px;
+  font-size: var(--text-xs);
   white-space: pre-wrap;
 }
 
 .warning {
   margin: 0;
   color: var(--warning);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }

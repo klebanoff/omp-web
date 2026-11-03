@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <style>
+    :root { --tile: #2f6feb; --glyph: #ffffff; }
+    @media (prefers-color-scheme: dark) { :root { --tile: #6ea8fe; --glyph: #17181b; } }
+  </style>
+  <rect width="24" height="24" rx="6" fill="var(--tile)" />
+  <path d="M8 8.25 11.75 12 8 15.75" fill="none" stroke="var(--glyph)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M13 16h4" fill="none" stroke="var(--glyph)" stroke-width="2" stroke-linecap="round" />
+</svg>

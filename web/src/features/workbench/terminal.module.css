@@ -15,14 +15,14 @@
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .dot {
   width: 6px;
   height: 6px;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   background: var(--muted);
 }
 
@@ -32,7 +32,7 @@
 }
 
 .ready {
-  background: var(--success, #4caf82);
+  background: var(--success);
 }
 
 .exited,

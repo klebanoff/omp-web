@@ -11,6 +11,7 @@ import {
   SidebarIcon,
   XIcon,
 } from "./icons";
+import { BrandMark } from "./BrandMark";
 import styles from "./rail.module.css";
 
 export function RailSkin({
@@ -109,7 +110,10 @@ export function RailSkin({
   return (
     <aside className={styles.rail}>
       <header className={styles.header}>
-        <span className={styles.brandName}>omp</span>
+        <span className={styles.brand}>
+          <BrandMark size={20} />
+          <span className={styles.brandName}>omp</span>
+        </span>
         {searchOpen ? (
           <div className={styles.searchWrap}>
             <span className={styles.searchIcon}>

@@ -11,7 +11,7 @@
   display: flex;
   min-height: 38px;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 4px 8px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
@@ -29,13 +29,13 @@
   align-items: center;
   gap: 5px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 4px 8px;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .viewTab:hover {
@@ -50,11 +50,11 @@
 }
 
 .viewCount {
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   padding: 0 5px;
   color: var(--accent);
-  font-size: 9px;
+  font-size: var(--text-xs);
 }
 
 .rootLabel {
@@ -62,20 +62,20 @@
   flex: 1;
   overflow: hidden;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .iconButton {
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 2px 6px;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .iconButton:hover {
@@ -104,7 +104,7 @@
   flex-direction: column;
   overflow-y: auto;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   padding: 3px;
   box-shadow: var(--shadow-1);
@@ -112,13 +112,13 @@
 
 .addRootItem {
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 3px 6px;
   color: var(--fg);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
   text-align: left;
   white-space: nowrap;
 }
@@ -130,7 +130,7 @@
 .addRootEmpty {
   padding: 4px 6px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .iconButton:disabled:hover {
@@ -159,7 +159,7 @@
 .treeStatus {
   padding: 6px 10px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .editorArea {
@@ -184,7 +184,7 @@
   padding: 7px 10px;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .tab,
@@ -199,7 +199,7 @@
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
@@ -231,25 +231,25 @@
   width: 6px;
   height: 6px;
   flex: 0 0 auto;
-  border-radius: 50%;
+  border-radius: var(--radius-pill);
   background: var(--warning);
 }
 
 .tabMarker {
   color: var(--accent);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .tabClose {
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 0 3px;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .tabClose:hover {

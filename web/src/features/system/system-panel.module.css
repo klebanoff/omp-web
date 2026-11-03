@@ -19,25 +19,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
 }
 
 .title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
 
 .close {
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 2px 8px;
   color: var(--muted);
-  font-size: 15px;
+  font-size: var(--text-md);
   line-height: 1.2;
   cursor: pointer;
 }
@@ -59,12 +59,12 @@
 .tab,
 .tabActive {
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   padding: 3px 8px;
   color: var(--muted);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-xs);
   letter-spacing: 0.02em;
   white-space: nowrap;
   cursor: pointer;
