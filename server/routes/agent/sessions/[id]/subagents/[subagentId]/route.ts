@@ -5,6 +5,7 @@ import { subagentTranscriptResponseSchema } from "@/server/schemas/agent";
 import { resolveSessionPathOr404 } from "@/lib/api-utils";
 import {
   readCompletionArtifact,
+  readSubagentTranscriptBefore,
   readSubagentTranscriptPage,
   readSubagentTranscriptTail,
   resolveSubagentArtifact,
@@ -22,11 +23,12 @@ const SUBAGENT_ID_MAX_LENGTH = 100;
 export const contract = routeContract({
   GET: {
     summary:
-      "Read a page of a subagent's transcript (fromByte, or the tail), or its final completion artifact (mode=completion)",
+      "Read a page of a subagent's transcript (fromByte, the tail, or the page before a byte offset), or its final completion artifact (mode=completion)",
     request: {
       query: z.object({
-        mode: z.enum(["completion", "tail"]).optional(),
+        mode: z.enum(["completion", "tail", "before"]).optional(),
         fromByte: z.string().optional(),
+        beforeByte: z.string().optional(),
       }),
     },
     responses: {
@@ -51,8 +53,10 @@ export const contract = routeContract({
  *
  * ?mode=tail: the last complete-lines page of the transcript, so a long
  * running transcript opens where the agent actually is instead of walking
- * every page from byte 0. Page backwards from `fromByte`, forward from
- * `nextByte`.
+ * every page from byte 0. Follow it forward with `fromByte=nextByte`.
+ *
+ * ?mode=before&beforeByte=N: the complete-lines page ENDING at or before N —
+ * step backwards with `beforeByte=fromByte`; a `fromByte` of 0 is the head.
  */
 export async function GET(
   req: Request,
@@ -85,7 +89,12 @@ export async function GET(
     if (!resolved) {
       return json({ error: "Subagent transcript not found", code: "transcript_not_found" }, { status: 404 });
     }
-    if (searchParams.get("mode") === "tail") return json(readSubagentTranscriptTail(resolved));
+    const mode = searchParams.get("mode");
+    if (mode === "tail") return json(readSubagentTranscriptTail(resolved));
+    if (mode === "before") {
+      const beforeByteRaw = searchParams.get("beforeByte");
+      return json(readSubagentTranscriptBefore(resolved, beforeByteRaw !== null ? Number(beforeByteRaw) : 0));
+    }
     const fromByteRaw = searchParams.get("fromByte");
     const fromByte = fromByteRaw !== null ? Number(fromByteRaw) : 0;
     const page = readSubagentTranscriptPage(resolved, fromByte);

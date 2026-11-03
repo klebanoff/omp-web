@@ -194,6 +194,7 @@ export class SessionAuthority {
       live: this.#session.isAlive(),
       roster: this.#subagents.roster.map(subagentWireInfo),
       activity: this.#subagents.activity,
+      transcriptVersions: this.#subagents.transcriptVersions,
     };
   }
 

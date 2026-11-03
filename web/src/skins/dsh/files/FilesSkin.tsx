@@ -7,6 +7,7 @@ import { FileTree } from "@/features/workbench/FileTree";
 import { ProblemsList } from "@/features/workbench/ProblemsList";
 import { ResizeHandle } from "@/layout/ResizeHandle";
 import type { FilesSlotProps } from "@/slots/files";
+import { dshChatClasses } from "../chat/classes";
 import { Tabs } from "./Tabs";
 import styles from "./files.module.css";
 
@@ -239,6 +240,7 @@ export function FilesSkin({
             roots={roots}
             tabs={tabs}
             activeTabId={activeTabId}
+            transcriptClasses={dshChatClasses.transcript}
             onTabScroll={onTabScroll}
             {...(onInlinePrompt ? { onInlinePrompt } : {})}
           />

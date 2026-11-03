@@ -137,6 +137,15 @@ test("transcript route pages, tails and rejects a malformed subagent id", () => 
     assert.equal(invalid.status, 400);
     assert.equal(invalid.body.code, "invalid_subagent_id");
 
+    const before = await get(`/api/agent/sessions/${SESSION_ID}/subagents/Scout?mode=before&beforeByte=999999`);
+    assert.equal(before.status, 200);
+    assert.equal(before.body.nextByte, before.body.totalBytes);
+    assert.deepEqual(before.body.messages, first.body.messages);
+
+    const head = await get(`/api/agent/sessions/${SESSION_ID}/subagents/Scout?mode=before&beforeByte=0`);
+    assert.equal(head.status, 200);
+    assert.deepEqual(head.body.messages, []);
+
     const missing = await get(`/api/agent/sessions/${SESSION_ID}/subagents/Ghost`);
     assert.equal(missing.status, 404);
     assert.equal(missing.body.code, "transcript_not_found");

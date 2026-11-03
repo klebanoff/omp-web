@@ -552,3 +552,76 @@ export function readCompletionArtifact(
     closeSync(fd);
   }
 }
+
+/**
+ * The complete-lines page that ENDS at or before `beforeByte`.
+ *
+ * This is how the reader pages backwards: `fromByte` of the page already shown
+ * becomes the next call's `beforeByte`, so a window never overlaps the previous
+ * one and no message needs de-duplicating. A `fromByte` of 0 means the head is
+ * reached.
+ */
+export function readSubagentTranscriptBefore(
+  sessionFilePath: string,
+  beforeByte: number,
+): SubagentTranscriptPage {
+  const empty: SubagentTranscriptPage = {
+    sessionFile: sessionFilePath,
+    fromByte: 0,
+    nextByte: 0,
+    reset: false,
+    messages: [],
+  };
+  let size: number;
+  try {
+    size = statSync(sessionFilePath).size;
+  } catch {
+    return empty;
+  }
+  if (size > MAX_SUBAGENT_TRANSCRIPT_BYTES) {
+    return { ...empty, error: "Subagent transcript exceeds the readable size limit" };
+  }
+  const before = typeof beforeByte === "number" && Number.isFinite(beforeByte)
+    ? Math.min(Math.max(0, Math.trunc(beforeByte)), size)
+    : size;
+  if (before <= 0) return { ...empty, totalBytes: size };
+
+  let startByte = Math.max(0, before - SUBAGENT_TRANSCRIPT_PAGE_BYTES);
+  let windowText: string;
+  try {
+    const fd = openSync(sessionFilePath, "r");
+    try {
+      const buffer = Buffer.alloc(before - startByte);
+      const bytesRead = readSync(fd, buffer, 0, buffer.length, startByte);
+      windowText = buffer.subarray(0, bytesRead).toString("utf8");
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return { ...empty, totalBytes: size };
+  }
+
+  if (startByte > 0 && !startsAtLineBoundary(sessionFilePath, startByte)) {
+    // The window opens mid-record: step forward to the next newline so the
+    // page starts on a record boundary (and never overlaps the previous page).
+    const firstNewline = windowText.indexOf("\n");
+    if (firstNewline < 0) return { ...empty, fromByte: before, nextByte: before, totalBytes: size };
+    const skipped = Buffer.byteLength(windowText.slice(0, firstNewline + 1), "utf8");
+    startByte += skipped;
+    windowText = windowText.slice(firstNewline + 1);
+  }
+
+  // Drop a trailing record that has no closing newline yet — the next forward
+  // page will deliver it whole.
+  const lastNewline = windowText.lastIndexOf("\n");
+  const completeText = lastNewline >= 0 ? windowText.slice(0, lastNewline + 1) : "";
+  if (completeText.length === 0) {
+    return { ...empty, fromByte: startByte, nextByte: startByte, totalBytes: size };
+  }
+  const entries = parseJsonlLenient<SessionEntry>(completeText);
+  const messages = entries
+    .map((entry) => entryToUiMessage(entry, {}))
+    .filter((message): message is AgentMessage => message !== null);
+  const nextByte = startByte + Buffer.byteLength(completeText, "utf8");
+  return { sessionFile: sessionFilePath, fromByte: startByte, nextByte, reset: false, messages, totalBytes: size };
+}

@@ -15,6 +15,8 @@ export interface AgentRoster {
   live: boolean;
   roster: readonly SubagentRow[];
   activity: Readonly<Record<string, readonly SubagentActivityEvent[]>>;
+  /** Per-subagent transcript counter (see `contract/events.md`). */
+  transcriptVersions: Readonly<Record<string, number>>;
   /** Set when the channel could not be opened; readers fall back to HTTP. */
   error: string | null;
 }
@@ -24,6 +26,7 @@ const EMPTY_ROSTER: AgentRoster = {
   live: false,
   roster: [],
   activity: {},
+  transcriptVersions: {},
   error: null,
 };
 
@@ -52,6 +55,7 @@ export function applySubagentsFrame(sessionId: string, frame: SubagentsFrame): v
     live: frame.live,
     roster: frame.roster,
     activity: frame.activity,
+    transcriptVersions: frame.transcriptVersions,
     error: null,
   });
   emit(sessionId);
@@ -91,6 +95,11 @@ export function getActiveSubagents(sessionId: string): readonly SubagentRow[] {
   const active = roster.roster.filter((row) => row.status === "started");
   activeCache.set(sessionId, { source: roster.roster, active });
   return active;
+}
+
+/** Transcript counter of one subagent; 0 when nothing was recorded yet. */
+export function getTranscriptVersion(sessionId: string, subagentId: string): number {
+  return rosters.get(sessionId)?.transcriptVersions[subagentId] ?? 0;
 }
 
 export function getSubagent(sessionId: string, subagentId: string): SubagentRow | null {

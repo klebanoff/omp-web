@@ -2,6 +2,7 @@ import { api } from "./client";
 import { errorInfo } from "./agent";
 import { isRecord } from "./guards";
 import type { paths } from "./schema";
+import type { ChatMessage } from "./session-types";
 
 /**
  * Subagent wire types and fetches.
@@ -64,6 +65,8 @@ export interface SubagentsFrame {
   live: boolean;
   roster: SubagentRow[];
   activity: Record<string, SubagentActivityEvent[]>;
+  /** Bumped when a subagent's transcript gained content (see events.md). */
+  transcriptVersions: Record<string, number>;
 }
 
 function parseActivity(value: unknown): SubagentActivityEvent | null {
@@ -89,12 +92,19 @@ export function parseSubagentsFrame(value: unknown): SubagentsFrame | null {
       if (parsed.length > 0) activity[id] = parsed;
     }
   }
+  const transcriptVersions: Record<string, number> = {};
+  if (isRecord(value.transcriptVersions)) {
+    for (const [id, version] of Object.entries(value.transcriptVersions)) {
+      if (typeof version === "number" && Number.isFinite(version)) transcriptVersions[id] = version;
+    }
+  }
   return {
     type: "subagents",
     revision: value.revision,
     live: value.live === true,
     roster,
     activity,
+    transcriptVersions,
   };
 }
 
@@ -109,6 +119,7 @@ export async function fetchSubagentRoster(sessionId: string): Promise<SubagentRo
 
 export type SubagentPageOptions =
   | { mode: "tail" }
+  | { mode: "before"; beforeByte: number }
   | { fromByte: number };
 
 /**
@@ -120,7 +131,11 @@ export async function fetchSubagentPage(
   subagentId: string,
   options: SubagentPageOptions,
 ): Promise<SubagentTranscriptPage> {
-  const query = "mode" in options ? { mode: "tail" as const } : { fromByte: String(options.fromByte) };
+  const query = "mode" in options
+    ? options.mode === "tail"
+      ? { mode: "tail" as const }
+      : { mode: "before" as const, beforeByte: String(options.beforeByte) }
+    : { fromByte: String(options.fromByte) };
   const { data, error, response } = await api.GET("/api/agent/sessions/{id}/subagents/{subagentId}", {
     params: { path: { id: sessionId, subagentId }, query },
   });
@@ -136,4 +151,27 @@ export async function fetchSubagentCompletion(sessionId: string, subagentId: str
   });
   if (error) throw new Error(errorInfo(error, response.status).message);
   return data?.completion ?? null;
+}
+
+/**
+ * Contract transcripts are `unknown[]` (omp owns the message shape), so the
+ * boundary parses defensively: a row without a role is dropped, never rendered.
+ */
+export function parseSubagentMessages(raw: readonly unknown[] | undefined): ChatMessage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (message): message is ChatMessage =>
+      isRecord(message) && typeof message.role === "string" && message.role.length > 0,
+  );
+}
+
+/** Tool results keyed by `toolCallId`, the shape `MessageView` looks up. */
+export function toolResultsFromMessages(messages: readonly ChatMessage[]): Map<string, ChatMessage> {
+  const results = new Map<string, ChatMessage>();
+  for (const message of messages) {
+    if (message.role !== "toolResult") continue;
+    const id = (message as { toolCallId?: unknown }).toolCallId;
+    if (typeof id === "string" && id !== "") results.set(id, message);
+  }
+  return results;
 }

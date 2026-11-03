@@ -23,7 +23,7 @@ function row(overrides: Partial<SubagentRow> = {}): SubagentRow {
 }
 
 function frame(roster: SubagentRow[]): SubagentsFrame {
-  return { type: "subagents", revision: 1, live: true, roster, activity: {} };
+  return { type: "subagents", revision: 1, live: true, roster, activity: {}, transcriptVersions: {} };
 }
 
 function renderList(sessionId = "s1") {

@@ -29,6 +29,7 @@ function frame(overrides: Partial<SubagentsFrame> = {}): SubagentsFrame {
     live: true,
     roster: [row()],
     activity: {},
+    transcriptVersions: {},
     ...overrides,
   };
 }

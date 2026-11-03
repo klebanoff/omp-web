@@ -2427,12 +2427,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read a page of a subagent's transcript (fromByte, or the tail), or its final completion artifact (mode=completion) */
+        /** Read a page of a subagent's transcript (fromByte, the tail, or the page before a byte offset), or its final completion artifact (mode=completion) */
         get: {
             parameters: {
                 query?: {
+                    beforeByte?: string;
                     fromByte?: string;
-                    mode?: "completion" | "tail";
+                    mode?: "completion" | "tail" | "before";
                 };
                 header?: never;
                 path: {

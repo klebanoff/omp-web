@@ -5,6 +5,7 @@ import {
   getActiveSubagents,
   getAgentRoster,
   getSubagent,
+  getTranscriptVersion,
   subscribeAgentRoster,
   type AgentRoster,
 } from "./subagents-store";
@@ -78,4 +79,20 @@ export function useAgentRows(sessionId: string | null): {
     live: roster?.live ?? false,
     loading: roster === null && sessionId !== null && fallback.isPending,
   };
+}
+
+/**
+ * Counter that ticks when this subagent's transcript gains content. A reader
+ * fetches the next page on a bump instead of polling the file.
+ */
+export function useTranscriptVersion(sessionId: string | null, subagentId: string | null): number {
+  const subscribe = useCallback(
+    (listener: () => void) => (sessionId ? subscribeAgentRoster(sessionId, listener) : () => {}),
+    [sessionId],
+  );
+  const getSnapshot = useCallback(
+    () => (sessionId && subagentId ? getTranscriptVersion(sessionId, subagentId) : 0),
+    [sessionId, subagentId],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, () => 0);
 }

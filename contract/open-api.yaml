@@ -2788,7 +2788,7 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
   /api/agent/sessions/{id}/subagents/{subagentId}:
     get:
-      summary: Read a page of a subagent's transcript (fromByte, or the tail), or its final completion artifact (mode=completion)
+      summary: Read a page of a subagent's transcript (fromByte, the tail, or the page before a byte offset), or its final completion artifact (mode=completion)
       parameters:
         - name: id
           in: path
@@ -2798,6 +2798,11 @@ paths:
         - name: subagentId
           in: path
           required: true
+          schema:
+            type: string
+        - name: beforeByte
+          in: query
+          required: false
           schema:
             type: string
         - name: fromByte
@@ -2813,6 +2818,7 @@ paths:
             enum:
               - completion
               - tail
+              - before
       responses:
         "200":
           description: OK

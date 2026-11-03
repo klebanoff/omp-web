@@ -410,7 +410,7 @@ async function openSubagentsChannel(sessionId: string, handle: SubscriptionHandl
   const roster = extractSubagentHistory(filePath).map(historyToRosterInfo).map(subagentWireInfo);
   handle.open();
   if (!handle.active) return SUBSCRIBED;
-  handle.send({ type: "subagents", revision: 1, live: false, roster, activity: {} });
+  handle.send({ type: "subagents", revision: 1, live: false, roster, activity: {}, transcriptVersions: {} });
   return SUBSCRIBED;
 }
 

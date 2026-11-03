@@ -339,6 +339,9 @@ export interface SubagentsFrame {
   live: boolean;
   roster: readonly SubagentWireInfo[];
   activity: Readonly<Record<string, readonly SubagentActivityEvent[]>>;
+  /** Per-subagent counter bumped when its transcript gained content, so a
+   * reader knows to fetch the next page instead of polling. */
+  transcriptVersions: Readonly<Record<string, number>>;
 }
 
 /** Frame payload without the discriminant, the shape a server snapshot takes. */

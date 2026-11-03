@@ -44,6 +44,7 @@ export function EditorArea({
   roots,
   tabs,
   activeTabId,
+  transcriptClasses,
   onTabScroll,
   onInlinePrompt,
 }: EditorSlotProps) {
@@ -74,7 +75,14 @@ export function EditorArea({
     }
     if (activeTab.kind === "subagent") {
       const subagentId = activeTab.subagentId ?? activeTab.path;
-      return <SubagentView key={activeTab.id} sessionId={sessionId} subagentId={subagentId} />;
+      return (
+        <SubagentView
+          key={activeTab.id}
+          sessionId={sessionId}
+          subagentId={subagentId}
+          classes={transcriptClasses}
+        />
+      );
     }
     if (!activeTab.diff) return null;
     return <DiffView key={activeTab.id} source={activeTab.diff} />;

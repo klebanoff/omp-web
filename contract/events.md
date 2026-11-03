@@ -56,7 +56,8 @@ overlaid with the live `subagent_lifecycle` / `subagent_progress` /
     { "id": "EngineCore", "agent": "task", "status": "started", "index": 0,
       "batchSeq": 0, "transcriptAvailable": true, "toolCount": 9, "tokens": 12040 }
   ],
-  "activity": { "EngineCore": [{ "kind": "tool", "label": "→ read core/reducer.ts", "ts": 1792584407106 }] }
+  "activity": { "EngineCore": [{ "kind": "tool", "label": "→ read core/reducer.ts", "ts": 1792584407106 }] },
+  "transcriptVersions": { "EngineCore": 7 }
 }
 ```
 
@@ -70,6 +71,9 @@ overlaid with the live `subagent_lifecycle` / `subagent_progress` /
   flushes immediately.
 - **Live wins over history** for the same id, and a settled status is never
   regressed by a stale snapshot.
+- `transcriptVersions[id]` counts content added to that agent's transcript. A
+  reader compares the number it saw last and fetches the next transcript page
+  instead of polling; activity entries are capped, versions are not.
 - `roster[].transcriptAvailable` replaces the absolute transcript path: the
   browser reads it through `GET /api/agent/sessions/{id}/subagents/{subagentId}`
   (`mode=tail` for the last page, `fromByte` for paging, `mode=completion` for
