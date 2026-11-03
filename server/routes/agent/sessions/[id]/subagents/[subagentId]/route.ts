@@ -1,8 +1,15 @@
 import { z } from "zod";
 import { json } from "@/server/http";
 import { errorEnvelope, routeContract } from "@/server/contract";
+import { subagentTranscriptResponseSchema } from "@/server/schemas/agent";
 import { resolveSessionPathOr404 } from "@/lib/api-utils";
-import { readCompletionArtifact, readSubagentTranscriptPage, resolveSubagentArtifact, subagentTranscriptPath } from "@/lib/subagent-history";
+import {
+  readCompletionArtifact,
+  readSubagentTranscriptPage,
+  readSubagentTranscriptTail,
+  resolveSubagentArtifact,
+  subagentTranscriptPath,
+} from "@/lib/subagent-history";
 
 // Subagent ids are AdjectiveNoun names, optionally dotted for nested spawns
 // (OMP allocates hierarchical ids like `Parent.Child`). The grammar bounds the
@@ -14,25 +21,16 @@ const SUBAGENT_ID_MAX_LENGTH = 100;
 
 export const contract = routeContract({
   GET: {
-    summary: "Read a page of a subagent's transcript, or its final completion artifact (mode=completion)",
+    summary:
+      "Read a page of a subagent's transcript (fromByte, or the tail), or its final completion artifact (mode=completion)",
     request: {
       query: z.object({
-        mode: z.enum(["completion"]).optional(),
+        mode: z.enum(["completion", "tail"]).optional(),
         fromByte: z.string().optional(),
       }),
     },
     responses: {
-      200: z.looseObject({
-        sessionFile: z.string(),
-        fromByte: z.number().optional(),
-        nextByte: z.number().optional(),
-        reset: z.boolean().optional(),
-        messages: z.array(z.unknown()).optional(),
-        completion: z.string().nullable().optional(),
-        truncated: z.boolean().optional(),
-        error: z.string().optional(),
-        totalBytes: z.number().optional(),
-      }),
+      200: subagentTranscriptResponseSchema,
       400: errorEnvelope,
       404: errorEnvelope,
       500: errorEnvelope,
@@ -50,6 +48,11 @@ export const contract = routeContract({
  *
  * ?mode=completion: the subagent's final output (`<id>.md`), without loading
  * the transcript — works even for transcripts beyond the readable size cap.
+ *
+ * ?mode=tail: the last complete-lines page of the transcript, so a long
+ * running transcript opens where the agent actually is instead of walking
+ * every page from byte 0. Page backwards from `fromByte`, forward from
+ * `nextByte`.
  */
 export async function GET(
   req: Request,
@@ -82,6 +85,7 @@ export async function GET(
     if (!resolved) {
       return json({ error: "Subagent transcript not found", code: "transcript_not_found" }, { status: 404 });
     }
+    if (searchParams.get("mode") === "tail") return json(readSubagentTranscriptTail(resolved));
     const fromByteRaw = searchParams.get("fromByte");
     const fromByte = fromByteRaw !== null ? Number(fromByteRaw) : 0;
     const page = readSubagentTranscriptPage(resolved, fromByte);
