@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { getGitStatus } from "./git-changes";
 import type { GitStatusResponse } from "./git-types";
@@ -103,18 +104,34 @@ async function repositoryRoot(cwd: string): Promise<string> {
   return (await runGit(cwd, ["rev-parse", "--show-toplevel"])).trim();
 }
 
+/**
+ * Long, canonical form of a directory. Git prints the real path, while a
+ * client's cwd can arrive in Windows 8.3 short form (`S40C9~1.KLE`), and the
+ * two never compare equal: every explicit path would then look like it escapes
+ * the repository. Best effort — an unresolvable path is compared as given.
+ */
+function canonicalDir(value: string): string {
+  try {
+    return realpathSync.native(value);
+  } catch {
+    return value;
+  }
+}
+
 /** Repo-relative POSIX paths; absolute paths and `..` escapes are rejected. */
 function repositoryPaths(root: string, cwd: string, paths: readonly string[] | undefined): string[] {
   const values = paths ?? [];
   if (values.length === 0) {
     throw new GitWriteError("paths or all is required", "paths_required", 400);
   }
+  const canonicalRoot = canonicalDir(root);
+  const canonicalCwd = canonicalDir(cwd);
   return values.map((value) => {
     if (!value || value.includes("\0") || isAbsolute(value)) {
       throw new GitWriteError(`Invalid repository path: ${value}`, "invalid_path", 400);
     }
-    const absolute = resolve(cwd, value);
-    const rel = relative(root, absolute);
+    const absolute = resolve(canonicalCwd, value);
+    const rel = relative(canonicalRoot, absolute);
     if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
       throw new GitWriteError(`Path is outside the repository: ${value}`, "path_outside_repository", 400);
     }
