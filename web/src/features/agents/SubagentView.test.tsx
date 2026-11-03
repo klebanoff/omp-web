@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SubagentRow, SubagentsFrame } from "@/api/subagents";
 import { testTranscriptClasses } from "@/features/chat/test-classes";
 import { applySubagentsFrame, resetSubagentRosters } from "@/state/subagents-store";
@@ -78,5 +78,44 @@ describe("SubagentView", () => {
 
     await waitFor(() => expect(screen.getByText("This agent has not written anything yet.")).toBeTruthy());
     expect(screen.getByText("Working")).toBeTruthy();
+  });
+});
+
+describe("SubagentView task block", () => {
+  const longPrompt = [
+    "Complete assignment thoroughly:",
+    "",
+    "# Target",
+    "Rewrite protocol.ts to the frozen spec.",
+    "",
+    "# Change",
+    "1. Keep MAX_PLAYERS = 8.",
+    "2. Add STARTING_LIFE and the wire view types.",
+  ].join(String.fromCharCode(10));
+
+  it("lets the reader expand the agent's prompt instead of clipping it", async () => {
+    applySubagentsFrame("s1", { ...frame, roster: [{ ...row, task: longPrompt }] });
+    fetchSubagentPage.mockResolvedValue({ fromByte: 0, nextByte: 0, reset: false, messages: [], totalBytes: 0 });
+
+    render(<SubagentView sessionId="s1" subagentId="Scout" classes={testTranscriptClasses} />);
+
+    const toggle = screen.getByRole("button", { name: "Show full prompt" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(toggle);
+
+    const collapse = screen.getByRole("button", { name: "Show less" });
+    expect(collapse.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText(/Add STARTING_LIFE and the wire view types/)).toBeTruthy();
+  });
+
+  it("does not offer a toggle for a short task", async () => {
+    applySubagentsFrame("s1", { ...frame, roster: [{ ...row, task: "Map the workbench" }] });
+    fetchSubagentPage.mockResolvedValue({ fromByte: 0, nextByte: 0, reset: false, messages: [], totalBytes: 0 });
+
+    render(<SubagentView sessionId="s1" subagentId="Scout" classes={testTranscriptClasses} />);
+
+    await waitFor(() => expect(screen.getByText("Map the workbench")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /Show full prompt|Show less/ })).toBeNull();
   });
 });

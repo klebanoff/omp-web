@@ -65,8 +65,18 @@
   font-weight: 500;
 }
 
+.taskBlock {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+/* Clamped with a line clamp (not a height clip) so the cut ends on a whole
+   line instead of slicing a glyph in half. */
 .task {
-  max-height: 62px;
+  display: -webkit-box;
   overflow: hidden;
   border-radius: 8px;
   background: var(--surface-2);
@@ -74,6 +84,33 @@
   color: var(--muted);
   font-size: 11px;
   white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.taskExpanded {
+  overflow-y: auto;
+  max-height: 45vh;
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.taskToggle {
+  border: 0;
+  background: transparent;
+  padding: 0 2px;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10.5px;
+}
+
+.taskToggle:hover {
+  text-decoration: underline;
 }
 
 .body {

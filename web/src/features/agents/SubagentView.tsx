@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type JSX } from "react";
+import { useEffect, useMemo, useRef, useState, type JSX } from "react";
 import { toolResultsFromMessages } from "@/api/subagents";
 import { MessageView } from "@/features/chat/MessageView";
 import type { TranscriptClasses } from "@/features/chat/classes";
@@ -95,6 +95,11 @@ export function SubagentView({ sessionId, subagentId, classes }: SubagentViewPro
   const tools = typeof rawTools === "number" && rawTools > 0 ? rawTools : undefined;
   const task = row?.task ?? row?.assignment ?? row?.description ?? "";
   const status = row ? (STATUS_LABEL[row.status] ?? row.status) : "Not in this session";
+  // The task IS the agent's prompt, and the header clamps it to three lines.
+  // Measured text beats a layout read here: the toggle must exist in the DOM
+  // regardless of the pane width a test renders at.
+  const [taskExpanded, setTaskExpanded] = useState(false);
+  const taskOverflows = task.split("\n").length > 3 || task.length > 220;
 
   return (
     <div className={styles.view} ref={rootRef}>
@@ -142,7 +147,21 @@ export function SubagentView({ sessionId, subagentId, classes }: SubagentViewPro
           ) : null}
         </div>
 
-        {task !== "" ? <div className={styles.task}>{task}</div> : null}
+        {task !== "" ? (
+          <div className={styles.taskBlock}>
+            <div className={taskExpanded ? styles.taskExpanded : styles.task}>{task}</div>
+            {taskOverflows ? (
+              <button
+                type="button"
+                className={styles.taskToggle}
+                aria-expanded={taskExpanded}
+                onClick={() => setTaskExpanded((open) => !open)}
+              >
+                {taskExpanded ? "Show less" : "Show full prompt"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       <div className={styles.body} ref={scrollRef} onScroll={handleScroll} aria-label="Subagent transcript">
