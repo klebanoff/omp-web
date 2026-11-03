@@ -1,5 +1,6 @@
 import { readdirSync, watch, type FSWatcher } from "fs";
 import { join } from "path";
+import { readSessionHeaderSync } from "./omp/session-files";
 import {
   getAgentDir,
   invalidateSessionEntriesCache,
@@ -31,6 +32,8 @@ const RESYNC_MS = 250;
 const listeners = new Set<Listener>();
 /** One watcher per directory: the sessions root plus each project directory. */
 const watchers = new Map<string, FSWatcher>();
+/** Sessions root the current watchers were armed against. */
+let armedRoot: string | null = null;
 let pendingPaths = new Set<string>();
 let pendingUnknown = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -60,9 +63,17 @@ function flush(): void {
   invalidateSessionListMeta();
   for (const path of paths) invalidateSessionEntriesCache(path);
 
-  void Promise.all(paths.map((path) => resolveSessionIdByPath(path).catch(() => undefined)))
+  void Promise.all(paths.map((path) => idForChangedPath(path)))
     .then((ids) => {
       const sessionIds = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+      // A path that resolved to no id is a change we failed to attribute (a
+      // brand-new file the list scan has not picked up, or a scan that raced
+      // this write). Dropping it silently loses the update, so fall back to the
+      // same broad rescan the unnameable-event path uses.
+      if (sessionIds.length < paths.length) {
+        void rescanAndNotify();
+        return;
+      }
       if (sessionIds.length === 0) return;
       for (const listener of listeners) {
         try {
@@ -75,6 +86,19 @@ function flush(): void {
     .catch(() => {
       // resolution failures are not worth tearing the watcher down for
     });
+}
+
+/**
+ * Session id of one changed file.
+ *
+ * The list index is tried first (it is authoritative and cached), but a session
+ * file written for the first time can be newer than the last scan — the header
+ * of the file itself always names the id.
+ */
+async function idForChangedPath(path: string): Promise<string | undefined> {
+  const resolved = await resolveSessionIdByPath(path).catch(() => undefined);
+  if (resolved) return resolved;
+  return readSessionHeaderSync(path)?.id;
 }
 
 async function rescanAndNotify(): Promise<void> {
@@ -125,6 +149,7 @@ function closeWatchers(): void {
     }
   }
   watchers.clear();
+  armedRoot = null;
 }
 
 function onEvent(dir: string, filename: string | Buffer | null): void {
@@ -166,7 +191,7 @@ function attach(dir: string): void {
 
 /** Attaches a watcher to the sessions root and to every project directory. */
 function syncTree(): void {
-  const sessionsDir = join(getAgentDir(), "sessions");
+  const sessionsDir = sessionsRoot();
   let dirs: string[];
   try {
     const entries = readdirSync(sessionsDir, { withFileTypes: true });
@@ -190,13 +215,25 @@ function syncTree(): void {
     }
     watchers.delete(dir);
   }
+  armedRoot = sessionsDir;
   for (const dir of dirs) {
     if (!watchers.has(dir)) attach(dir);
   }
 }
 
+/** `<agent dir>/sessions` — the tree the watchers must be armed against. */
+function sessionsRoot(): string {
+  return join(getAgentDir(), "sessions");
+}
+
 function ensureWatcher(): void {
-  if (watchers.size > 0 || retryTimer) return;
+  if (retryTimer) return;
+  const root = sessionsRoot();
+  if (watchers.size > 0 && armedRoot === root) return;
+  // A different agent dir (`PI_CODING_AGENT_DIR`, tests) must not leave the
+  // watchers pointing at the previous tree: every later event would be
+  // attributed to a root nobody reads.
+  closeWatchers();
   syncTree();
 }
 
