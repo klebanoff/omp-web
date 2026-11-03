@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from "fs";
+import { readdirSync, watch, type FSWatcher } from "fs";
 import { join } from "path";
 import {
   getAgentDir,
@@ -15,16 +15,26 @@ import {
 // it was open: the file grew and nothing told the browser. This watches the
 // session tree and reports which session ids changed, which the running-events
 // stream forwards to the client.
+//
+// The tree is two levels deep (`sessions/<project>/<id>.jsonl`), so it is
+// watched one directory at a time: `recursive: true` is not portable — Bun
+// refuses it where the platform has no recursive primitive (Linux), and the
+// watcher then never starts at all. Per-directory watchers also stay cheap:
+// one per project directory, re-armed when the root reports a new or gone one.
 
 type Listener = (sessionIds: string[]) => void;
 
 const DEBOUNCE_MS = 250;
+/** A directory event lands after the writes it caused; re-arm shortly after. */
+const RESYNC_MS = 250;
 
 const listeners = new Set<Listener>();
-let watcher: FSWatcher | null = null;
+/** One watcher per directory: the sessions root plus each project directory. */
+const watchers = new Map<string, FSWatcher>();
 let pendingPaths = new Set<string>();
 let pendingUnknown = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let resyncTimer: ReturnType<typeof setTimeout> | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 const RETRY_MS = 5000;
 
@@ -92,32 +102,102 @@ function scheduleRetry(): void {
   }, RETRY_MS);
 }
 
-function ensureWatcher(): void {
-  if (watcher || retryTimer) return;
-  const sessionsDir = join(getAgentDir(), "sessions");
-  try {
-    watcher = watch(sessionsDir, { recursive: true, persistent: false }, (_event, filename) => {
-      if (!filename) {
-        pendingUnknown = true;
-        if (!flushTimer) flushTimer = setTimeout(flush, DEBOUNCE_MS);
-        return;
-      }
-      const name = filename.toString();
-      if (!name.endsWith(".jsonl")) return;
-      pendingPaths.add(join(sessionsDir, name));
-      if (!flushTimer) flushTimer = setTimeout(flush, DEBOUNCE_MS);
-    });
-    watcher.on("error", () => {
-      watcher?.close();
-      watcher = null;
-      scheduleRetry();
-    });
-  } catch {
-    // No sessions directory yet, or the platform refused a recursive watch.
-    // Schedule a retry while subscribers remain; otherwise degrade silently.
-    watcher = null;
-    scheduleRetry();
+function scheduleFlush(): void {
+  if (flushTimer) return;
+  flushTimer = setTimeout(flush, DEBOUNCE_MS);
+}
+
+/** Coalesces the re-arms a burst of directory events would otherwise cause. */
+function scheduleResync(): void {
+  if (resyncTimer || listeners.size === 0) return;
+  resyncTimer = setTimeout(() => {
+    resyncTimer = null;
+    syncTree();
+  }, RESYNC_MS);
+}
+
+function closeWatchers(): void {
+  for (const watcher of watchers.values()) {
+    try {
+      watcher.close();
+    } catch {
+      // A watcher whose directory vanished may already be closed.
+    }
   }
+  watchers.clear();
+}
+
+function onEvent(dir: string, filename: string | Buffer | null): void {
+  if (!filename) {
+    // fs.watch coalesced the event or overflowed: the file is unknown, so the
+    // flush falls back to full invalidation, and a directory may have moved.
+    pendingUnknown = true;
+    scheduleFlush();
+    scheduleResync();
+    return;
+  }
+  const name = filename.toString();
+  if (name.endsWith(".jsonl")) {
+    pendingPaths.add(join(dir, name));
+    scheduleFlush();
+    return;
+  }
+  // Anything else in a watched directory is a project directory appearing or
+  // vanishing, which only changes the set of directories to watch.
+  scheduleResync();
+}
+
+function attach(dir: string): void {
+  let watcher: FSWatcher;
+  try {
+    watcher = watch(dir, { persistent: false }, (_event, filename) => onEvent(dir, filename));
+  } catch {
+    // A directory removed between the scan and the attach, or a refused watch.
+    closeWatchers();
+    scheduleRetry();
+    return;
+  }
+  watcher.on("error", () => {
+    closeWatchers();
+    scheduleRetry();
+  });
+  watchers.set(dir, watcher);
+}
+
+/** Attaches a watcher to the sessions root and to every project directory. */
+function syncTree(): void {
+  const sessionsDir = join(getAgentDir(), "sessions");
+  let dirs: string[];
+  try {
+    const entries = readdirSync(sessionsDir, { withFileTypes: true });
+    dirs = [sessionsDir];
+    for (const entry of entries) {
+      if (entry.isDirectory()) dirs.push(join(sessionsDir, entry.name));
+    }
+  } catch {
+    // No sessions directory yet, or it is unreadable: retry while subscribers remain.
+    closeWatchers();
+    scheduleRetry();
+    return;
+  }
+
+  for (const [dir, watcher] of watchers) {
+    if (dirs.includes(dir)) continue;
+    try {
+      watcher.close();
+    } catch {
+      // already closed
+    }
+    watchers.delete(dir);
+  }
+  for (const dir of dirs) {
+    if (!watchers.has(dir)) attach(dir);
+  }
+}
+
+function ensureWatcher(): void {
+  if (watchers.size > 0 || retryTimer) return;
+  syncTree();
 }
 
 export function subscribeSessionFileChanges(listener: Listener): () => void {
@@ -130,13 +210,16 @@ export function subscribeSessionFileChanges(listener: Listener): () => void {
       clearTimeout(flushTimer);
       flushTimer = null;
     }
+    if (resyncTimer) {
+      clearTimeout(resyncTimer);
+      resyncTimer = null;
+    }
     if (retryTimer) {
       clearTimeout(retryTimer);
       retryTimer = null;
     }
     pendingPaths = new Set();
     pendingUnknown = false;
-    watcher?.close();
-    watcher = null;
+    closeWatchers();
   };
 }
