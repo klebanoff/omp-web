@@ -14,7 +14,35 @@ import type { paths } from "./schema";
 type RosterPayload = NonNullable<
   paths["/api/agent/sessions/{id}/subagents"]["get"]["responses"][200]["content"]["application/json"]
 >;
-export type SubagentRow = RosterPayload["subagents"][number];
+/** The on-disk row the REST route returns. */
+export type SubagentHistoryRow = RosterPayload["subagents"][number];
+
+/**
+ * Live extras the `subagents` channel adds on top of the on-disk row (the wire
+ * shape is documented in `contract/events.md`, not in the REST contract).
+ */
+export interface SubagentProgressWire {
+  status?: "pending" | "running" | "completed" | "failed" | "aborted";
+  currentTool?: string;
+  currentToolArgs?: string;
+  lastIntent?: string;
+  toolCount?: number;
+  requests?: number;
+  tokens?: number;
+  contextTokens?: number;
+  contextWindow?: number;
+  cost?: number;
+  durationMs?: number;
+  resolvedModel?: string;
+  modelRole?: string;
+}
+
+export type SubagentRow = SubagentHistoryRow & {
+  progress?: SubagentProgressWire;
+  /** Frame stamp of the last live update (ms). */
+  lastUpdate?: number;
+  source?: "live" | "history";
+};
 
 type TranscriptPayload = NonNullable<
   paths["/api/agent/sessions/{id}/subagents/{subagentId}"]["get"]["responses"][200]["content"]["application/json"]
