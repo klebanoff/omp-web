@@ -147,11 +147,18 @@
 .footer {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   border-top: 1px solid var(--border);
   padding: 5px 9px;
   color: var(--muted);
   font-size: 10px;
+  white-space: nowrap;
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .footer kbd {

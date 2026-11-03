@@ -424,7 +424,7 @@ export interface paths {
                             id: string;
                             channel: {
                                 /** @enum {string} */
-                                kind: "running" | "notifications" | "session" | "file" | "workspace" | "lsp" | "host-tools";
+                                kind: "running" | "notifications" | "session" | "subagents" | "file" | "workspace" | "lsp" | "host-tools";
                                 clientId?: string;
                                 sessionId?: string;
                                 path?: string;

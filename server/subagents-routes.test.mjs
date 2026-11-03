@@ -102,6 +102,46 @@ async function get(path) {
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
+async function post(path, body) {
+  invalidateSessionListCache();
+  const response = await dispatch(
+    new Request(`http://127.0.0.1:30178${path}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
+    }),
+    routes,
+  );
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+/** First SSE frame of one subscription, or null when nothing arrives in time. */
+async function firstFrame(stream, subscriptionId) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const deadline = Date.now() + 3000;
+  try {
+    while (Date.now() < deadline) {
+      const chunk = await Promise.race([
+        reader.read(),
+        new Promise((resolve) => setTimeout(() => resolve({ done: true, value: undefined }), 500)),
+      ]);
+      if (chunk.done) continue;
+      buffer += decoder.decode(chunk.value);
+      const match = new RegExp(`event: ${subscriptionId}
+data: (.*)
+
+`).exec(buffer);
+      if (match) return JSON.parse(match[1]);
+    }
+    return null;
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+}
+
 test("roster route returns the typed on-disk subagent list", () => withFixture(async () => {
     const { status, body } = await get(`/api/agent/sessions/${SESSION_ID}/subagents`);
     assert.equal(status, 200);
@@ -162,3 +202,32 @@ test("completion route returns the final artifact and 404s without one", () => w
     assert.equal(missing.body.code, "transcript_not_found");
     assert.equal(existsSync(join(artifactsDir, "Ghost.md")), false);
 }));
+
+test("the events contract accepts a subagents subscription and serves the roster", async () => {
+  writeSessionFixture();
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  invalidateSessionListCache();
+  const { EventStreamConnection } = await import("../lib/event-stream-hub.ts");
+  const connection = new EventStreamConnection();
+  try {
+    const subscribed = await post("/api/agent/events", {
+      connectionId: connection.id,
+      subscribe: { id: "s1", channel: { kind: "subagents", sessionId: SESSION_ID } },
+    });
+    // A contract that forgot the new channel kind answers 400 here and the
+    // browser could never subscribe.
+    assert.equal(subscribed.status, 200);
+    assert.equal(subscribed.body.ok, true);
+
+    const frame = await firstFrame(connection.stream, "s1");
+    assert.equal(frame?.type, "subagents");
+    assert.deepEqual(frame.roster.map((row) => row.id), ["Scout"]);
+    assert.equal(frame.live, false);
+  } finally {
+    connection.close();
+    if (originalAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = originalAgentDir;
+    invalidateSessionListCache();
+    rmSync(agentDir, { recursive: true, force: true });
+  }
+});

@@ -237,7 +237,7 @@ WebSocket `/api/workspace/terminal` на `node-pty`).
 **M3. UI в `web/`.** Консоль, Monaco, панели файлов и git. Только HTTP;
 типизация клиента — из `open-api.yaml`. Визуальный ориентир из §8.
 **Статус: выполнено** (React 19 + Vite 8, чат на снимках, workbench
-Files/Changes/терминал, Monaco + xterm.js, Playwright e2e).
+Files/Changes/Agents/терминал, Monaco + xterm.js, Playwright e2e).
 
 **M4. Совмещение.** Inline-правки в стиле Cursor, LSP-диагностика, multi-root,
 расширения. Только после стабильных M1–M3.

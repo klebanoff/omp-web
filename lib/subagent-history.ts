@@ -290,6 +290,14 @@ export function extractSubagentHistory(sessionFilePath: string): SubagentHistory
       entry.transcriptAvailable = true;
       // Async task results never carry the model; the transcript always does.
       entry.resolvedModel ??= transcriptModel(candidate);
+      // omp writes `<id>.md` when the task SETTLES, so its presence is the only
+      // on-disk evidence that an async agent (whose parent task result keeps
+      // `progress[].status: "pending"` and an empty `results[]`) has finished.
+      // Without this, a reloaded session lists every historical agent as
+      // running.
+      if (entry.status === "started" && existsSync(join(dir, `${entry.id}.md`))) {
+        entry.status = "completed";
+      }
     }
   }
   return roster.sort((a, b) =>

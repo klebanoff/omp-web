@@ -427,6 +427,7 @@ paths:
                             - running
                             - notifications
                             - session
+                            - subagents
                             - file
                             - workspace
                             - lsp

@@ -84,11 +84,15 @@ export function SubagentView({ sessionId, subagentId, classes }: SubagentViewPro
   }, [sessionId, subagentId]);
 
   const running = row?.status === "started";
-  const duration = row?.durationMs ?? row?.progress?.durationMs;
+  const rawDuration = row?.durationMs ?? row?.progress?.durationMs;
+  const duration = typeof rawDuration === "number" && rawDuration > 0 ? rawDuration : undefined;
   const model = modelLabel(row?.resolvedModel ?? row?.progress?.resolvedModel);
   const tokens = formatTokens(row?.tokens ?? row?.progress?.tokens);
   const cost = formatCost(row?.cost ?? row?.progress?.cost);
-  const tools = row?.toolCount ?? row?.progress?.toolCount;
+  const rawTools = row?.toolCount ?? row?.progress?.toolCount;
+  // A disk-only snapshot records 0 for agents whose progress was never sampled;
+  // printing "Tools 0" reads as a measurement it is not.
+  const tools = typeof rawTools === "number" && rawTools > 0 ? rawTools : undefined;
   const task = row?.task ?? row?.assignment ?? row?.description ?? "";
   const status = row ? (STATUS_LABEL[row.status] ?? row.status) : "Not in this session";
 

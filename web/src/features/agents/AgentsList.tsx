@@ -68,13 +68,13 @@ export function AgentsList({ sessionId }: { sessionId: string }): JSX.Element {
       </div>
 
       <div className={styles.footer}>
-        <span>
-          <kbd>↑</kbd> <kbd>↓</kbd> move
+        <span className={styles.hint}>
+          <kbd>↑</kbd>
+          <kbd>↓</kbd> move
         </span>
-        <span>
+        <span className={styles.hint}>
           <kbd>Enter</kbd> open
         </span>
-        <span className={styles.spacer} />
       </div>
     </div>
   );
@@ -83,10 +83,13 @@ export function AgentsList({ sessionId }: { sessionId: string }): JSX.Element {
 function AgentRow({ sessionId, row }: { sessionId: string; row: SubagentRow }): JSX.Element {
   const running = row.status === "started";
   const duration = row.durationMs ?? row.progress?.durationMs;
-  const time = running ? formatElapsed(duration) : formatDuration(duration);
-  const detail = running
-    ? (row.progress?.currentTool ? `${row.progress.currentTool}${row.progress.currentToolArgs ? ` · ${row.progress.currentToolArgs}` : ""}` : firstLine(row.task ?? row.assignment ?? row.description))
-    : firstLine(row.task ?? row.assignment ?? row.description);
+  // A disk-only row often carries duration 0 (the spawn snapshot), which would
+  // render as a meaningless "0ms" on every finished row.
+  const measured = typeof duration === "number" && duration > 0 ? duration : undefined;
+  const time = measured === undefined ? "" : running ? formatElapsed(measured) : formatDuration(measured);
+  const detail = running && row.progress?.currentTool
+    ? `${row.progress.currentTool}${row.progress.currentToolArgs ? ` · ${row.progress.currentToolArgs}` : ""}`
+    : summarizeTask(row.task ?? row.assignment ?? row.description);
 
   return (
     <button
@@ -119,11 +122,24 @@ function AgentRow({ sessionId, row }: { sessionId: string; row: SubagentRow }): 
   );
 }
 
-/** First non-empty line, collapsed to one line of text. */
-function firstLine(value?: string): string {
+/** Lines omp's own prompt wrapper adds to every task; they say nothing. */
+const BOILERPLATE = /^(complete assignment thoroughly:?|#+\s*(target|change|acceptance|goal|repo conventions.*))$/i;
+
+/**
+ * One line that tells two subagents apart.
+ *
+ * omp prefixes every assignment with the same instructions and markdown
+ * headings, so the first line is identical for every agent; the first line that
+ * actually describes the work is the useful one.
+ */
+function summarizeTask(value?: string): string {
   if (typeof value !== "string") return "";
-  const line = value.split("\n").find((candidate) => candidate.trim() !== "") ?? "";
-  return line.trim();
+  for (const line of value.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "" || BOILERPLATE.test(trimmed)) continue;
+    return trimmed.length > 160 ? `${trimmed.slice(0, 157)}…` : trimmed;
+  }
+  return "";
 }
 
 /** Running-count badge for the "Agents" navigator pill (a leaf on purpose). */
